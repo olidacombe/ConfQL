@@ -1,9 +1,10 @@
 #[macro_use]
 extern crate lazy_static;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_graphql::{Object, SimpleObject};
 use colored::Colorize;
+use serde::Deserialize;
 use serde_yaml;
 use std::path::{Path, PathBuf};
 
@@ -28,7 +29,7 @@ lazy_static! {
     static ref DEFAULT_ROOT: &'static Path = Path::new("./data");
 }
 
-#[derive(SimpleObject)]
+#[derive(SimpleObject, Deserialize, Debug)]
 struct Hero {
     name: String,
     powers: Vec<String>,
@@ -39,9 +40,16 @@ struct Query;
 async fn get_heroes_from_path(path: PathBuf) -> Result<Vec<Hero>> {
     let f = std::fs::File::open(path)?;
     let d = serde_yaml::from_reader::<_, serde_yaml::Value>(f)?;
-    eprintln!("{}", "OKAAAAY".magenta());
-    let s = serde_yaml::to_string(&d)?;
-    eprintln!("{}", s.purple());
+    if let Some(heroes) = d.get("heroes") {
+        eprintln!(
+            "{}\n{}",
+            "shit YEAAAAH".yellow(),
+            serde_yaml::to_string(heroes)?.purple()
+        );
+        let heroes: Vec<Hero> = serde_yaml::from_value(heroes.to_owned())
+            .context("Failed to deserialize to Vec<Hero>")?;
+        eprintln!("{}, {:?}", "coool YEAAAAH".blue(), heroes);
+    }
 
     Ok(vec![])
 }
@@ -63,8 +71,9 @@ impl Query {
     async fn heroes(&self) -> Vec<Hero> {
         let mut heroes: Vec<Hero> = vec![];
         for index_filename in SETTINGS.index_filenames.iter() {
-            if let Ok(hs) = get_heroes_from_path(SETTINGS.root.join(index_filename)).await {
-                heroes.extend(hs);
+            match get_heroes_from_path(SETTINGS.root.join(index_filename)).await {
+                Ok(hs) => heroes.extend(hs),
+                Err(e) => eprintln!("{}", e),
             }
         }
         heroes
