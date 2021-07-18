@@ -1,4 +1,24 @@
 use async_graphql::{Object, SimpleObject};
+#[macro_use]
+extern crate lazy_static;
+
+struct Settings<'a> {
+    index_filenames: Option<Vec<&'a str>>,
+}
+
+const DEFAULT_INDEX_FILENAMES: &'static [&str] = &["index.yml"];
+
+impl Settings<'_> {
+    fn new() -> Self {
+        Self {
+            index_filenames: Some(DEFAULT_INDEX_FILENAMES.to_vec()),
+        }
+    }
+}
+
+lazy_static! {
+    static ref SETTINGS: Settings<'static> = Settings::new();
+}
 
 #[derive(SimpleObject)]
 struct Hero {
