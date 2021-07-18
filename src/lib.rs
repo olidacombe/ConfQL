@@ -5,7 +5,6 @@ use anyhow::{Context, Result};
 use async_graphql::{Object, SimpleObject};
 use colored::Colorize;
 use serde::Deserialize;
-use serde_yaml;
 use std::path::{Path, PathBuf};
 
 struct Settings<'a> {
@@ -13,7 +12,7 @@ struct Settings<'a> {
     root: &'a Path,
 }
 
-const DEFAULT_INDEX_FILENAMES: &'static [&str] = &["index.yml", "shitos"];
+const DEFAULT_INDEX_FILENAMES: &[&str] = &["index.yml", "shitos"];
 
 impl Settings<'_> {
     fn new() -> Self {
@@ -49,9 +48,10 @@ async fn get_heroes_from_path(path: PathBuf) -> Result<Vec<Hero>> {
         let heroes: Vec<Hero> = serde_yaml::from_value(heroes.to_owned())
             .context("Failed to deserialize to Vec<Hero>")?;
         eprintln!("{}, {:?}", "coool YEAAAAH".blue(), heroes);
+        Ok(heroes)
+    } else {
+        Ok(vec![])
     }
-
-    Ok(vec![])
 }
 
 #[Object]
