@@ -36,10 +36,10 @@ struct Hero {
 
 struct Query;
 
-async fn get_heroes_from_path(path: PathBuf) -> Result<Vec<Hero>> {
+async fn get_heroes_from_path(path: PathBuf, index: &str) -> Result<Vec<Hero>> {
     let f = std::fs::File::open(path)?;
     let d = serde_yaml::from_reader::<_, serde_yaml::Value>(f)?;
-    if let Some(heroes) = d.get("heroes") {
+    if let Some(heroes) = d.get(index) {
         eprintln!(
             "{}\n{}",
             "shit YEAAAAH".yellow(),
@@ -71,7 +71,7 @@ impl Query {
     async fn heroes(&self) -> Vec<Hero> {
         let mut heroes: Vec<Hero> = vec![];
         for index_filename in SETTINGS.index_filenames.iter() {
-            match get_heroes_from_path(SETTINGS.root.join(index_filename)).await {
+            match get_heroes_from_path(SETTINGS.root.join(index_filename), "heroes").await {
                 Ok(hs) => heroes.extend(hs),
                 Err(e) => eprintln!("{}", e),
             }
