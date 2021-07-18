@@ -15,11 +15,15 @@ impl Query {
         a + b
     }
 
-    async fn heroes(&self) -> Vec<Hero> {
+    async fn losers(&self) -> Vec<Hero> {
         vec![Hero {
             name: "Bobby".to_owned(),
             powers: vec![],
         }]
+    }
+
+    async fn heroes(&self) -> Vec<Hero> {
+        vec![]
     }
 }
 
@@ -28,17 +32,36 @@ mod tests {
     use super::*;
     use async_graphql::{value, EmptyMutation, EmptySubscription, Schema};
 
-    #[actix_rt::test]
-    async fn hello() {
-        let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
-        let res = schema.execute("{ add(a: 10, b: 20) }").await;
-        assert_eq!(res.data, value!({"add": 30}));
+    macro_rules! assert_query_result {
+        ($a:expr, $b:expr) => {
+            let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+            let res = schema.execute($a).await;
+            assert_eq!(res.data, $b);
+        };
     }
 
     #[actix_rt::test]
-    async fn test_test() {
-        let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
-        let res = schema.execute("{ heroes { name } }").await;
-        assert_eq!(res.data, value!({"heroes": [{"name": "Bobby"}]}));
+    async fn hello() {
+        assert_query_result!("{ add(a: 10, b: 20) }", value!({"add": 30}));
+    }
+
+    #[actix_rt::test]
+    async fn test_test_type_comparison() {
+        assert_query_result!(
+            "{ losers { name } }",
+            value!({"losers": [{"name": "Bobby"}]})
+        );
+    }
+
+    #[actix_rt::test]
+    async fn finds_heroes() {
+        assert_query_result!(
+            "{ heroes { name } }",
+            value!({"heroes": [
+                { "name": "Andy Anderson" },
+                { "name": "Charlie Charleston" },
+                { "name": "Kevin Kevinson" },
+            ]})
+        );
     }
 }
