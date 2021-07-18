@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate lazy_static;
 
+use anyhow::Result;
 use async_graphql::{Object, SimpleObject};
 use colored::Colorize;
 use serde_yaml;
@@ -35,19 +36,14 @@ struct Hero {
 
 struct Query;
 
-async fn get_heroes_from_path(path: PathBuf) -> Option<Vec<Hero>> {
-    if let Ok(f) = std::fs::File::open(path) {
-        if let Ok(d) = serde_yaml::from_reader::<_, serde_yaml::Value>(f) {
-            eprintln!("{}", "OKAAAAY".magenta());
-            if let Ok(s) = serde_yaml::to_string(&d) {
-                eprintln!("{}", s.purple());
-            }
-        }
-    } else {
-        eprintln!("{}", "FUUUUCK".purple());
-    }
+async fn get_heroes_from_path(path: PathBuf) -> Result<Vec<Hero>> {
+    let f = std::fs::File::open(path)?;
+    let d = serde_yaml::from_reader::<_, serde_yaml::Value>(f)?;
+    eprintln!("{}", "OKAAAAY".magenta());
+    let s = serde_yaml::to_string(&d)?;
+    eprintln!("{}", s.purple());
 
-    Some(vec![])
+    Ok(vec![])
 }
 
 #[Object]
@@ -67,7 +63,7 @@ impl Query {
     async fn heroes(&self) -> Vec<Hero> {
         let mut heroes: Vec<Hero> = vec![];
         for index_filename in SETTINGS.index_filenames.iter() {
-            if let Some(hs) = get_heroes_from_path(SETTINGS.root.join(index_filename)).await {
+            if let Ok(hs) = get_heroes_from_path(SETTINGS.root.join(index_filename)).await {
                 heroes.extend(hs);
             }
         }
