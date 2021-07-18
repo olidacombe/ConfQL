@@ -39,14 +39,14 @@ async fn get_heroes_from_path(path: PathBuf) -> Option<Vec<Hero>> {
     if let Ok(f) = std::fs::File::open(path) {
         if let Ok(d) = serde_yaml::from_reader::<_, serde_yaml::Value>(f) {
             eprintln!("{}", "OKAAAAY".magenta());
+            if let Ok(s) = serde_yaml::to_string(&d) {
+                eprintln!("{}", s.purple());
+            }
         }
     } else {
         eprintln!("{}", "FUUUUCK".purple());
     }
-    //}
-    //
-    //println!("Read YAML string: {}", d);
-    //}
+
     Some(vec![])
 }
 
