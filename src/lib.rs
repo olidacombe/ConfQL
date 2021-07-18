@@ -1,23 +1,30 @@
-use async_graphql::{Object, SimpleObject};
 #[macro_use]
 extern crate lazy_static;
 
+use async_graphql::{Object, SimpleObject};
+use colored::Colorize;
+use serde_yaml;
+use std::path::{Path, PathBuf};
+
 struct Settings<'a> {
-    index_filenames: Option<Vec<&'a str>>,
+    index_filenames: Vec<&'a str>,
+    root: &'a Path,
 }
 
-const DEFAULT_INDEX_FILENAMES: &'static [&str] = &["index.yml"];
+const DEFAULT_INDEX_FILENAMES: &'static [&str] = &["index.yml", "shitos"];
 
 impl Settings<'_> {
     fn new() -> Self {
         Self {
-            index_filenames: Some(DEFAULT_INDEX_FILENAMES.to_vec()),
+            index_filenames: DEFAULT_INDEX_FILENAMES.to_vec(),
+            root: &DEFAULT_ROOT,
         }
     }
 }
 
 lazy_static! {
     static ref SETTINGS: Settings<'static> = Settings::new();
+    static ref DEFAULT_ROOT: &'static Path = Path::new("./data");
 }
 
 #[derive(SimpleObject)]
@@ -27,6 +34,21 @@ struct Hero {
 }
 
 struct Query;
+
+async fn get_heroes_from_path(path: PathBuf) -> Option<Vec<Hero>> {
+    if let Ok(f) = std::fs::File::open(path) {
+        if let Ok(d) = serde_yaml::from_reader::<_, serde_yaml::Value>(f) {
+            eprintln!("{}", "OKAAAAY".magenta());
+        }
+    } else {
+        eprintln!("{}", "FUUUUCK".purple());
+    }
+    //}
+    //
+    //println!("Read YAML string: {}", d);
+    //}
+    Some(vec![])
+}
 
 #[Object]
 impl Query {
@@ -43,7 +65,13 @@ impl Query {
     }
 
     async fn heroes(&self) -> Vec<Hero> {
-        vec![]
+        let mut heroes: Vec<Hero> = vec![];
+        for index_filename in SETTINGS.index_filenames.iter() {
+            if let Some(hs) = get_heroes_from_path(SETTINGS.root.join(index_filename)).await {
+                heroes.extend(hs);
+            }
+        }
+        heroes
     }
 }
 
