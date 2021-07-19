@@ -7,6 +7,12 @@ use colored::Colorize;
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
+macro_rules! typename {
+    ($T:ty) => {
+        std::any::type_name::<$T>()
+    };
+}
+
 struct Settings<'a> {
     index_filenames: Vec<&'a str>,
     root: &'a Path,
@@ -36,24 +42,29 @@ struct Hero {
 
 struct Query;
 
-async fn get_heroes_from_path<T: for<'de> Deserialize<'de> + std::fmt::Debug>(
-    path: PathBuf,
-    index: &str,
-) -> Result<T> {
+async fn get_object_from_path<T>(path: &PathBuf, index: &str) -> Result<T>
+where
+    T: for<'de> Deserialize<'de> + std::fmt::Debug,
+{
     let f = std::fs::File::open(path)?;
     let d = serde_yaml::from_reader::<_, serde_yaml::Value>(f)?;
-    if let Some(heroes) = d.get(index) {
-        eprintln!(
-            "{}\n{}",
-            "shit YEAAAAH".yellow(),
-            serde_yaml::to_string(heroes)?.purple()
-        );
-        let heroes: T = serde_yaml::from_value(heroes.to_owned())
-            .context("Failed to deserialize to Vec<Hero>")?;
-        eprintln!("{}, {:?}", "coool YEAAAAH".blue(), heroes);
-        Ok(heroes)
+    if let Some(object) = d.get(index) {
+        //eprintln!(
+        //"{}\n{}",
+        //"shit YEAAAAH".yellow(),
+        //serde_yaml::to_string(object)?.purple()
+        //);
+        let object: T = serde_yaml::from_value(object.to_owned())
+            .context(format!("Failed to deserialize to {}", typename!(T)))?;
+        //eprintln!("{}, {:?}", "coool YEAAAAH".blue(), object);
+        Ok(object)
     } else {
-        Err(Error::msg("No heroes found at path"))
+        Err(Error::msg(format!(
+            "No {} found at {}::{}",
+            typename!(T),
+            path.display(),
+            index,
+        )))
     }
 }
 
@@ -74,7 +85,7 @@ impl Query {
     async fn heroes(&self) -> Vec<Hero> {
         let mut heroes: Vec<Hero> = vec![];
         for index_filename in SETTINGS.index_filenames.iter() {
-            match get_heroes_from_path::<Vec<Hero>>(SETTINGS.root.join(index_filename), "heroes")
+            match get_object_from_path::<Vec<Hero>>(&SETTINGS.root.join(index_filename), "heroes")
                 .await
             {
                 Ok(hs) => heroes.extend(hs),
