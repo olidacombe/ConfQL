@@ -42,6 +42,13 @@ struct Hero {
 
 struct Query;
 
+// TODO
+// - eat index, building path, and merging up
+// - indicator of whether we're looking for an array
+//     - if so then when index is empty (e.g. heroes directory)
+//       assume each file is an array item
+// - indicator of what field a filename should provide a default for
+//   in the case of above array scenario
 async fn get_object_from_path<T>(path: &PathBuf, index: &str) -> Result<T>
 where
     T: for<'de> Deserialize<'de> + std::fmt::Debug,
