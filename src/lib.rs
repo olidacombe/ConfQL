@@ -5,6 +5,7 @@ use anyhow::{Context, Error, Result};
 use async_graphql::{Object, SimpleObject};
 use colored::Colorize;
 use serde::Deserialize;
+use serde_yaml::Value;
 use std::path::{Path, PathBuf};
 
 macro_rules! typename {
@@ -42,6 +43,25 @@ struct Hero {
 
 struct Query;
 
+// E.g.
+// path: _, index: A.B.C
+// + index.yml :: A.B.C
+// + {A.yml, A/index.yml} :: B.C
+// + {A/B.yml, A/B/index.yml} :: C
+//     + {A/B/C.yml, A/B/C/index.yml} :: _ # C not array
+//     + {A/B/C.yml, A/B/C/*.yml (each file as entry)} :: _ # C array
+
+// TODO
+// for this fancy id shit, maybe we encode the serde_yaml => hydration bits
+// into a trait method.  Then if our target type implements IdFromFilename (wevs)
+// then work it so the id retrofitting gets called before the serde_yaml::from_value
+// somehow.
+
+//fn get_sub_value(value &Value, index: &vec![&str]) -> Result<&Value> {
+// TODO fuck it, just recurse on slices
+
+//}
+
 // TODO
 // - eat index, building path, and merging up
 // - indicator of whether we're looking for an array
@@ -49,12 +69,12 @@ struct Query;
 //       assume each file is an array item
 // - indicator of what field a filename should provide a default for
 //   in the case of above array scenario
-async fn get_object_from_path<T>(path: &PathBuf, index: &str) -> Result<T>
+async fn get_object_from_path<T>(path: &PathBuf, index: vec![&str]) -> Result<T>
 where
     T: for<'de> Deserialize<'de> + std::fmt::Debug,
 {
     let f = std::fs::File::open(path)?;
-    let d = serde_yaml::from_reader::<_, serde_yaml::Value>(f)?;
+    let d = serde_yaml::from_reader::<_, Value>(f)?;
     if let Some(object) = d.get(index) {
         //eprintln!(
         //"{}\n{}",
@@ -92,8 +112,11 @@ impl Query {
     async fn heroes(&self) -> Vec<Hero> {
         let mut heroes: Vec<Hero> = vec![];
         for index_filename in SETTINGS.index_filenames.iter() {
-            match get_object_from_path::<Vec<Hero>>(&SETTINGS.root.join(index_filename), "heroes")
-                .await
+            match get_object_from_path::<Vec<Hero>>(
+                &SETTINGS.root.join(index_filename),
+                vec!["heroes"],
+            )
+            .await
             {
                 Ok(hs) => heroes.extend(hs),
                 Err(e) => eprintln!("{}", e),
