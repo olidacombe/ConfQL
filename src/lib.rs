@@ -4,6 +4,8 @@ extern crate lazy_static;
 use anyhow::{Context, Error, Result};
 use async_graphql::{Object, SimpleObject};
 use colored::Colorize;
+use itertools::FoldWhile::{Continue, Done};
+use itertools::Itertools;
 use serde::Deserialize;
 use serde_yaml::Value;
 use std::path::{Path, PathBuf};
@@ -57,10 +59,15 @@ struct Query;
 // then work it so the id retrofitting gets called before the serde_yaml::from_value
 // somehow.
 
-//fn get_sub_value(value &Value, index: &vec![&str]) -> Result<&Value> {
-// TODO fuck it, just recurse on slices
-
-//}
+fn get_sub_value<'a>(value: &'a Value, index: &Vec<&str>) -> Result<&'a Value> {
+    index
+        .iter()
+        .fold_while(Ok(value), |acc, i| match acc.unwrap().get(i) {
+            Some(v) => Continue(Ok(v)),
+            _ => Done(Err(Error::msg(format!("Key {} not found", i,)))),
+        })
+        .into_inner()
+}
 
 // TODO
 // - eat index, building path, and merging up
@@ -69,30 +76,16 @@ struct Query;
 //       assume each file is an array item
 // - indicator of what field a filename should provide a default for
 //   in the case of above array scenario
-async fn get_object_from_path<T>(path: &PathBuf, index: vec![&str]) -> Result<T>
+async fn get_object_from_path<T>(path: &PathBuf, index: &Vec<&str>) -> Result<T>
 where
     T: for<'de> Deserialize<'de> + std::fmt::Debug,
 {
-    let f = std::fs::File::open(path)?;
-    let d = serde_yaml::from_reader::<_, Value>(f)?;
-    if let Some(object) = d.get(index) {
-        //eprintln!(
-        //"{}\n{}",
-        //"shit YEAAAAH".yellow(),
-        //serde_yaml::to_string(object)?.purple()
-        //);
-        let object: T = serde_yaml::from_value(object.to_owned())
-            .context(format!("Failed to deserialize to {}", typename!(T)))?;
-        //eprintln!("{}, {:?}", "coool YEAAAAH".blue(), object);
-        Ok(object)
-    } else {
-        Err(Error::msg(format!(
-            "No {} found at {}::{}",
-            typename!(T),
-            path.display(),
-            index,
-        )))
-    }
+    let file = std::fs::File::open(path)?;
+    let value = serde_yaml::from_reader::<_, Value>(file)?;
+    let object = get_sub_value(&value, index)?;
+    let object: T = serde_yaml::from_value(object.to_owned())
+        .context(format!("Failed to deserialize to {}", typename!(T)))?;
+    Ok(object)
 }
 
 #[Object]
@@ -114,7 +107,7 @@ impl Query {
         for index_filename in SETTINGS.index_filenames.iter() {
             match get_object_from_path::<Vec<Hero>>(
                 &SETTINGS.root.join(index_filename),
-                vec!["heroes"],
+                &vec!["heroes"],
             )
             .await
             {

@@ -7,8 +7,9 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1"
-colored = "2.0.0"
 async-graphql = "2.0"
+colored = "2.0.0"
+itertools = "0.10.1"
 lazy_static = "1.4.0"
 serde = "1.0"
 serde_yaml = "0.8"
