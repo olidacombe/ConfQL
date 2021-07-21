@@ -59,30 +59,36 @@ struct Query;
 // then work it so the id retrofitting gets called before the serde_yaml::from_value
 // somehow.
 
+// TODO only expose in tests / doctests?
+#[macro_export]
+macro_rules! yaml {
+    ($e:literal) => {
+        serde_yaml::from_str::<serde_yaml::Value>($e).unwrap()
+    };
+}
+
 /// Returns reference to sub-value of a deserialized Value
 ///
 /// # Examples
 ///
 /// ```
-/// use confql::get_sub_value;;
-///
-/// macro_rules! yaml {
-///    ($e:literal) => {
-///        serde_yaml::from_str::<serde_yaml::Value>($e).unwrap()
-///    };
-/// }
-///
+/// # use confql::{get_sub_value,yaml};
 /// let value = yaml!(r"#---
 /// A:
-///     B:
-///         C:
-///             presence: welcome
+///   B:
+///     C:
+///       presence: welcome
 /// #");
-/// let sub_value = get_sub_value(&value, &vec!["A", "B"]).unwrap();
+///
+/// let sub_value = get_sub_value(&value, &vec![])?;
+/// assert_eq!(*sub_value, value);
+///
+/// let sub_value = get_sub_value(&value, &vec!["A", "B"])?;
 /// assert_eq!(*sub_value, yaml!(r#"---
 /// C:
-///     presence: welcome
+///   presence: welcome
 /// "#));
+/// # Ok::<(), anyhow::Error>(())
 /// ```
 pub fn get_sub_value<'a>(value: &'a Value, index: &Vec<&str>) -> Result<&'a Value> {
     return index
