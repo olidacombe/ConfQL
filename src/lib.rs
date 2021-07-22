@@ -76,61 +76,43 @@ enum DataPathCardinality {
 
 type TDataPath<'a> = Vec<&'a str>;
 
-struct DataPath<'a>{path: TDataPath<'a>);
+// TODO not this derive if I can sort out
+// some of the below to_owned nonsense
+#[derive(Clone)]
+struct DataPath<'a> {
+    base_dir: PathBuf,
+    reverse_key_path: Vec<&'a str>,
+}
 
 impl<'a> DataPath<'a> {
-    // TODO impl From<TDataPath>?
-    fn from(path: TDataPath<'a>) -> Self {
-        Self{path}
+    pub fn new(base_dir: PathBuf, key_path: Vec<&'a str>) -> Self {
+        let mut dp = Self {
+            base_dir,
+            reverse_key_path: key_path,
+        };
+        dp.reverse_key_path.reverse();
+        dp
     }
-    fn iter(&self) -> DataPathIter<'_> {
-        DataPathIter {
-            path: self,
-            index: 0,
+    // TODO doctest the shit out of this
+    pub fn descend(&mut self) -> (Self, bool) {
+        if let Some(dir) = self.reverse_key_path.pop() {
+            self.base_dir.push(dir);
+            (self.to_owned(), false)
+        } else {
+            (self.to_owned(), true)
         }
     }
-    fn len(&self) -> usize {
-        self.path.len()
-    }
-    fn at<I>(&self, i: usize) -> DataPathSlice<'a> {
-        DataPathSlice {
-            file_path: self.path[..i],
-            data_path: self.path[i..],
-        }
-    }
 }
 
-struct DataPathSlice<'a> {
-    file_path: &'a TDataPath<'a>,
-    data_path: &'a TDataPath<'a>,
-}
-
-// TODO implement DataPathIter
-struct DataPathIter<'a> {
-    path: &'a DataPath<'a>,
-    index: usize,
-}
-
-impl<'a> Iterator for DataPathIter<'a> {
-    type Item = DataPathSlice<'a>;
+impl<'a> Iterator for DataPath<'a> {
+    type Item = Self;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index > self.path.len() {
-            return None;
+        let (next, done) = self.descend();
+        match done {
+            true => None,
+            false => Some(next),
         }
-        let slice = self.path.at(self.index);
-        self.index += 1;
-        Some(slice)
-    }
-}
-
-impl<'a> IntoIterator for &'a DataPath<'a> {
-    type Item = DataPathSlice<'a>;
-
-    type IntoIter = DataPathIter<'a>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
     }
 }
 
