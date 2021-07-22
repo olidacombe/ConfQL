@@ -8,6 +8,7 @@ use itertools::FoldWhile::{Continue, Done};
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_yaml::Value;
+use std::iter::Iterator;
 use std::path::{Path, PathBuf};
 
 macro_rules! typename {
@@ -65,6 +66,58 @@ macro_rules! yaml {
     ($e:literal) => {
         serde_yaml::from_str::<serde_yaml::Value>($e).unwrap()
     };
+}
+
+enum DataPathCardinality {
+    Single,
+    Multi,
+}
+
+type TDataPath<'a> = Vec<&'a str>;
+
+struct DataPath<'a> {
+    full_path: TDataPath<'a>,
+    car: DataPathCardinality,
+}
+
+impl<'a> DataPath<'a> {
+    fn single(full_path: TDataPath<'a>) -> Self {
+        Self {
+            full_path,
+            car: DataPathCardinality::Single,
+        }
+    }
+    fn multi(full_path: TDataPath<'a>) -> Self {
+        Self {
+            full_path,
+            car: DataPathCardinality::Multi,
+        }
+    }
+    fn iter(&self) -> DataPathIter<'_> {
+        DataPathIter {
+            path: self,
+            index: 0,
+        }
+    }
+}
+
+struct DataPathSlice<'a> {
+    file_path: &'a TDataPath<'a>,
+    data_path: &'a TDataPath<'a>,
+}
+
+// TODO implement DataPathIter
+struct DataPathIter<'a> {
+    path: &'a DataPath<'a>,
+    index: i32,
+}
+
+impl<'a> Iterator for DataPathIter<'a> {
+    type Item = DataPathSlice<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        todo!()
+    }
 }
 
 /// Returns reference to sub-value of a deserialized Value
