@@ -212,6 +212,26 @@ mod tests {
         };
     }
 
+    #[test]
+    fn data_path_iterator() {
+        let dp = DataPath::new(PathBuf::from("/tmp"), vec!["a", "b", "c"]);
+        let mut base_dirs: Vec<PathBuf> = vec![];
+        let mut reverse_key_paths: Vec<Vec<&str>> = vec![];
+        for p in dp {
+            base_dirs.push(p.base_dir.clone());
+            reverse_key_paths.push(p.reverse_key_path.clone());
+        }
+        assert_eq!(
+            base_dirs,
+            vec![
+                PathBuf::from("/tmp"),
+                PathBuf::from("/tmp/a"),
+                PathBuf::from("/tmp/a/b"),
+                PathBuf::from("/tmp/a/b/c"),
+            ]
+        );
+    }
+
     #[actix_rt::test]
     async fn hello() {
         assert_query_result!("{ add(a: 10, b: 20) }", value!({"add": 30}));
