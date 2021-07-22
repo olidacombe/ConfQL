@@ -9,6 +9,7 @@ use itertools::Itertools;
 use serde::Deserialize;
 use serde_yaml::Value;
 use std::iter::Iterator;
+use std::ops::Index;
 use std::path::{Path, PathBuf};
 
 macro_rules! typename {
@@ -75,28 +76,26 @@ enum DataPathCardinality {
 
 type TDataPath<'a> = Vec<&'a str>;
 
-struct DataPath<'a> {
-    full_path: TDataPath<'a>,
-    car: DataPathCardinality,
-}
+struct DataPath<'a>{path: TDataPath<'a>);
 
 impl<'a> DataPath<'a> {
-    fn single(full_path: TDataPath<'a>) -> Self {
-        Self {
-            full_path,
-            car: DataPathCardinality::Single,
-        }
-    }
-    fn multi(full_path: TDataPath<'a>) -> Self {
-        Self {
-            full_path,
-            car: DataPathCardinality::Multi,
-        }
+    // TODO impl From<TDataPath>?
+    fn from(path: TDataPath<'a>) -> Self {
+        Self{path}
     }
     fn iter(&self) -> DataPathIter<'_> {
         DataPathIter {
             path: self,
             index: 0,
+        }
+    }
+    fn len(&self) -> usize {
+        self.path.len()
+    }
+    fn at<I>(&self, i: usize) -> DataPathSlice<'a> {
+        DataPathSlice {
+            file_path: self.path[..i],
+            data_path: self.path[i..],
         }
     }
 }
@@ -109,14 +108,29 @@ struct DataPathSlice<'a> {
 // TODO implement DataPathIter
 struct DataPathIter<'a> {
     path: &'a DataPath<'a>,
-    index: i32,
+    index: usize,
 }
 
 impl<'a> Iterator for DataPathIter<'a> {
     type Item = DataPathSlice<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        todo!()
+        if self.index > self.path.len() {
+            return None;
+        }
+        let slice = self.path.at(self.index);
+        self.index += 1;
+        Some(slice)
+    }
+}
+
+impl<'a> IntoIterator for &'a DataPath<'a> {
+    type Item = DataPathSlice<'a>;
+
+    type IntoIter = DataPathIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
     }
 }
 
