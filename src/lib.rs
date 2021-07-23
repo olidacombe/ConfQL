@@ -79,13 +79,13 @@ type TDataPath<'a> = Vec<&'a str>;
 // TODO not this derive if I can sort out
 // some of the below to_owned nonsense
 #[derive(Clone)]
-struct DataPath<'a> {
+struct DataPath {
     base_dir: PathBuf,
-    reverse_key_path: Vec<&'a str>,
+    reverse_key_path: Vec<&'static str>,
 }
 
-impl<'a> DataPath<'a> {
-    pub fn new(base_dir: PathBuf, key_path: Vec<&'a str>) -> Self {
+impl DataPath {
+    pub fn new(base_dir: PathBuf, key_path: Vec<&'static str>) -> Self {
         let mut dp = Self {
             base_dir,
             reverse_key_path: key_path,
@@ -94,30 +94,33 @@ impl<'a> DataPath<'a> {
         dp
     }
     // TODO doctest the shit out of this
-    pub fn descend(&mut self) -> Option<&Self> {
+    pub fn descend(mut self) -> Option<Self> {
         self.reverse_key_path.pop().map(|dir| {
             self.base_dir.push(dir);
-            // cast away mut (better way?)
-            &*self
+            self
         })
     }
 }
 
-struct DataPathIter<'a> {
-    data_path: DataPath<'a>,
-    begun: bool,
+struct DataPathIter(Option<DataPath>);
+
+impl<'a> Iterator for DataPathIter {
+    type Item = DataPath;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.take().map(|data_path| {
+            let next = data_path.clone();
+            self.0 = data_path.descend();
+            next
+        })
+    }
 }
 
-impl<'a> Iterator for DataPathIter<'a> {
-    type Item = &'a DataPath<'a>;
+impl IntoIterator for DataPath {
+    type Item = DataPath;
+    type IntoIter = DataPathIter;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if !self.begun {
-            self.begun = true;
-            return Some(&self.data_path);
-        }
-
-        self.data_path.descend()
+    fn into_iter(self) -> Self::IntoIter {
+        DataPathIter(Some(self))
     }
 }
 
@@ -218,7 +221,7 @@ mod tests {
     }
 
     #[test]
-    fn data_path_iterator() {
+    fn data_path_descend() {
         let dp = DataPath::new(PathBuf::from("/tmp"), vec!["a", "b", "c"]);
         let mut base_dirs: Vec<PathBuf> = vec![];
         let mut reverse_key_paths: Vec<Vec<&str>> = vec![];
