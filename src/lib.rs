@@ -85,9 +85,9 @@ struct DataPath {
 }
 
 impl DataPath {
-    pub fn new(base_dir: PathBuf, key_path: Vec<&'static str>) -> Self {
+    pub fn new(base_dir: &str, key_path: Vec<&'static str>) -> Self {
         let mut dp = Self {
-            base_dir,
+            base_dir: PathBuf::from(base_dir),
             reverse_key_path: key_path,
         };
         dp.reverse_key_path.reverse();
@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn data_path_descend() {
-        let dp = DataPath::new(PathBuf::from("/tmp"), vec!["a", "b", "c"]);
+        let dp = DataPath::new("/tmp", vec!["a", "b", "c"]);
         let mut base_dirs: Vec<PathBuf> = vec![];
         let mut reverse_key_paths: Vec<Vec<&str>> = vec![];
         for p in dp {
