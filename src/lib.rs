@@ -121,6 +121,17 @@ impl DataPath {
 struct DataPathIter(Option<DataPath>);
 
 impl<'a> Iterator for DataPathIter {
+    // TODO a completely different Item?
+    // like struct {
+    //   files: Vec<&str>,
+    //   key_path: Vec<&str>
+    // }
+    // ???
+    //
+    // YEAH, totally different.  No mutation
+    // on DataPath, just iter holds an index
+    // and iter is keeping track of what
+    // filenames to hit
     type Item = DataPath;
     fn next(&mut self) -> Option<Self::Item> {
         self.0.take().map(|data_path| {
