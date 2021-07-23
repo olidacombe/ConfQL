@@ -3,13 +3,12 @@ extern crate lazy_static;
 
 use anyhow::{Context, Error, Result};
 use async_graphql::{Object, SimpleObject};
-use colored::Colorize;
+use impls::impls;
 use itertools::FoldWhile::{Continue, Done};
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_yaml::Value;
-use std::iter::Iterator;
-use std::ops::Index;
+use std::iter::{IntoIterator, Iterator};
 use std::path::{Path, PathBuf};
 
 macro_rules! typename {
@@ -46,9 +45,7 @@ struct Hero {
 }
 
 struct Query;
-
-// E.g.
-// path: _, index: A.B.C
+// E.g.  path: _, index: A.B.C
 // + index.yml :: A.B.C
 // + {A.yml, A/index.yml} :: B.C
 // + {A/B.yml, A/B/index.yml} :: C
@@ -69,15 +66,15 @@ macro_rules! yaml {
     };
 }
 
-enum DataPathCardinality {
-    Single,
-    Multi,
+macro_rules! gql_single_or_collection {
+    ($T:ty, $a:expr, $b:expr) => {
+        match impls!($T: IntoIterator) {
+            false => $a,
+            true => $b,
+        }
+    };
 }
 
-type TDataPath<'a> = Vec<&'a str>;
-
-// TODO not this derive if I can sort out
-// some of the below to_owned nonsense
 #[derive(Clone)]
 struct DataPath {
     base_dir: PathBuf,
@@ -85,7 +82,7 @@ struct DataPath {
 }
 
 impl DataPath {
-    pub fn new(base_dir: &str, key_path: Vec<&'static str>) -> Self {
+    pub fn new(base_dir: &Path, key_path: Vec<&'static str>) -> Self {
         let mut dp = Self {
             base_dir: PathBuf::from(base_dir),
             reverse_key_path: key_path,
@@ -99,6 +96,25 @@ impl DataPath {
             self.base_dir.push(dir);
             self
         })
+    }
+
+    async fn get_first_object<T>(&self) -> Result<T> {
+        todo!()
+    }
+
+    async fn get_all_objects<T>(&self) -> Result<T> {
+        todo!()
+    }
+
+    fn filenames<T>(&self) -> Vec<&'static str> {
+        gql_single_or_collection!(T, vec!["index.yml"], vec!["*.yml"])
+    }
+
+    pub async fn get_object<T>(&self) -> Result<T>
+    where
+        T: for<'de> Deserialize<'de> + std::fmt::Debug,
+    {
+        todo!()
     }
 }
 
@@ -120,7 +136,7 @@ impl IntoIterator for DataPath {
     type IntoIter = DataPathIter;
 
     fn into_iter(self) -> Self::IntoIter {
-        DataPathIter(Some(self))
+        DataPathIter(Some(self.clone()))
     }
 }
 
@@ -192,6 +208,7 @@ impl Query {
 
     async fn heroes(&self) -> Vec<Hero> {
         let mut heroes: Vec<Hero> = vec![];
+        let mut data_path = DataPath::new(&SETTINGS.root, vec!["heroes"]);
         for index_filename in SETTINGS.index_filenames.iter() {
             match get_object_from_path::<Vec<Hero>>(
                 &SETTINGS.root.join(index_filename),
@@ -222,7 +239,7 @@ mod tests {
 
     #[test]
     fn data_path_descend() {
-        let dp = DataPath::new("/tmp", vec!["a", "b", "c"]);
+        let dp = DataPath::new(&Path::new("/tmp"), vec!["a", "b", "c"]);
         let mut base_dirs: Vec<PathBuf> = vec![];
         let mut reverse_key_paths: Vec<Vec<&str>> = vec![];
         for p in dp {
@@ -253,7 +270,7 @@ mod tests {
         );
     }
 
-    //#[actix_rt::test]
+    #[actix_rt::test]
     async fn finds_heroes() {
         assert_query_result!(
             "{ heroes { name } }",
