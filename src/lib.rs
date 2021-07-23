@@ -94,25 +94,30 @@ impl<'a> DataPath<'a> {
         dp
     }
     // TODO doctest the shit out of this
-    pub fn descend(&mut self) -> (Self, bool) {
-        if let Some(dir) = self.reverse_key_path.pop() {
+    pub fn descend(&mut self) -> Option<&Self> {
+        self.reverse_key_path.pop().map(|dir| {
             self.base_dir.push(dir);
-            (self.to_owned(), false)
-        } else {
-            (self.to_owned(), true)
-        }
+            // cast away mut (better way?)
+            &*self
+        })
     }
 }
 
-impl<'a> Iterator for DataPath<'a> {
-    type Item = Self;
+struct DataPathIter<'a> {
+    data_path: DataPath<'a>,
+    begun: bool,
+}
+
+impl<'a> Iterator for DataPathIter<'a> {
+    type Item = &'a DataPath<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (next, done) = self.descend();
-        match done {
-            true => None,
-            false => Some(next),
+        if !self.begun {
+            self.begun = true;
+            return Some(&self.data_path);
         }
+
+        self.data_path.descend()
     }
 }
 
