@@ -3,13 +3,13 @@ extern crate lazy_static;
 
 use anyhow::{Context, Error, Result};
 use async_graphql::{Object, SimpleObject};
-use impls::impls;
 use itertools::FoldWhile::{Continue, Done};
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_yaml::Value;
-use std::iter::{IntoIterator, Iterator};
-use std::path::{Path, PathBuf};
+use std::path::Path;
+
+mod data_path;
 
 macro_rules! typename {
     ($T:ty) => {
@@ -66,91 +66,6 @@ macro_rules! yaml {
     };
 }
 
-macro_rules! gql_single_or_collection {
-    ($T:ty, $a:expr, $b:expr) => {
-        match impls!($T: IntoIterator) {
-            false => $a,
-            true => $b,
-        }
-    };
-}
-
-#[derive(Clone)]
-struct DataPath {
-    base_dir: PathBuf,
-    reverse_key_path: Vec<&'static str>,
-}
-
-impl DataPath {
-    pub fn new(base_dir: &Path, key_path: Vec<&'static str>) -> Self {
-        let mut dp = Self {
-            base_dir: PathBuf::from(base_dir),
-            reverse_key_path: key_path,
-        };
-        dp.reverse_key_path.reverse();
-        dp
-    }
-    // TODO doctest the shit out of this
-    pub fn descend(mut self) -> Option<Self> {
-        self.reverse_key_path.pop().map(|dir| {
-            self.base_dir.push(dir);
-            self
-        })
-    }
-
-    async fn get_first_object<T>(&self) -> Result<T> {
-        todo!()
-    }
-
-    async fn get_all_objects<T>(&self) -> Result<T> {
-        todo!()
-    }
-
-    fn filenames<T>(&self) -> Vec<&'static str> {
-        gql_single_or_collection!(T, vec!["index.yml"], vec!["*.yml"])
-    }
-
-    pub async fn get_object<T>(&self) -> Result<T>
-    where
-        T: for<'de> Deserialize<'de> + std::fmt::Debug,
-    {
-        todo!()
-    }
-}
-
-struct DataPathIter(Option<DataPath>);
-
-impl<'a> Iterator for DataPathIter {
-    // TODO a completely different Item?
-    // like struct {
-    //   files: Vec<&str>,
-    //   key_path: Vec<&str>
-    // }
-    // ???
-    //
-    // YEAH, totally different.  No mutation
-    // on DataPath, just iter holds an index
-    // and iter is keeping track of what
-    // filenames to hit
-    type Item = DataPath;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.take().map(|data_path| {
-            let next = data_path.clone();
-            self.0 = data_path.descend();
-            next
-        })
-    }
-}
-
-impl IntoIterator for DataPath {
-    type Item = DataPath;
-    type IntoIter = DataPathIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        DataPathIter(Some(self.clone()))
-    }
-}
-
 /// Returns reference to sub-value of a deserialized Value
 ///
 /// # Examples
@@ -174,7 +89,7 @@ impl IntoIterator for DataPath {
 /// "#));
 /// # Ok::<(), anyhow::Error>(())
 /// ```
-pub fn get_sub_value<'a>(value: &'a Value, index: &Vec<&str>) -> Result<&'a Value> {
+pub fn get_sub_value<'a>(value: &'a Value, index: &[&str]) -> Result<&'a Value> {
     return index
         .iter()
         .fold_while(Ok(value), |acc, i| match acc.unwrap().get(i) {
@@ -191,7 +106,7 @@ pub fn get_sub_value<'a>(value: &'a Value, index: &Vec<&str>) -> Result<&'a Valu
 //       assume each file is an array item
 // - indicator of what field a filename should provide a default for
 //   in the case of above array scenario
-async fn get_object_from_path<T>(path: &PathBuf, index: &Vec<&str>) -> Result<T>
+async fn get_object_from_path<T>(path: &Path, index: &[&str]) -> Result<T>
 where
     T: for<'de> Deserialize<'de> + std::fmt::Debug,
 {
@@ -219,11 +134,10 @@ impl Query {
 
     async fn heroes(&self) -> Vec<Hero> {
         let mut heroes: Vec<Hero> = vec![];
-        let mut data_path = DataPath::new(&SETTINGS.root, vec!["heroes"]);
         for index_filename in SETTINGS.index_filenames.iter() {
             match get_object_from_path::<Vec<Hero>>(
                 &SETTINGS.root.join(index_filename),
-                &vec!["heroes"],
+                &["heroes"],
             )
             .await
             {
@@ -248,26 +162,6 @@ mod tests {
         };
     }
 
-    #[test]
-    fn data_path_descend() {
-        let dp = DataPath::new(&Path::new("/tmp"), vec!["a", "b", "c"]);
-        let mut base_dirs: Vec<PathBuf> = vec![];
-        let mut reverse_key_paths: Vec<Vec<&str>> = vec![];
-        for p in dp {
-            base_dirs.push(p.base_dir.clone());
-            reverse_key_paths.push(p.reverse_key_path.clone());
-        }
-        assert_eq!(
-            base_dirs,
-            vec![
-                PathBuf::from("/tmp"),
-                PathBuf::from("/tmp/a"),
-                PathBuf::from("/tmp/a/b"),
-                PathBuf::from("/tmp/a/b/c"),
-            ]
-        );
-    }
-
     #[actix_rt::test]
     async fn hello() {
         assert_query_result!("{ add(a: 10, b: 20) }", value!({"add": 30}));
@@ -281,15 +175,16 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
-    async fn finds_heroes() {
-        assert_query_result!(
-            "{ heroes { name } }",
-            value!({"heroes": [
-                { "name": "Andy Anderson" },
-                { "name": "Charlie Charleston" },
-                { "name": "Kevin Kevinson" },
-            ]})
-        );
-    }
+    // TODO
+    //#[actix_rt::test]
+    //async fn finds_heroes() {
+    //assert_query_result!(
+    //"{ heroes { name } }",
+    //value!({"heroes": [
+    //{ "name": "Andy Anderson" },
+    //{ "name": "Charlie Charleston" },
+    //{ "name": "Kevin Kevinson" },
+    //]})
+    //);
+    //}
 }
