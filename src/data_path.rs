@@ -71,6 +71,10 @@ struct DataPathIter {
 }
 
 impl Iterator for DataPathIter {
+    // TODO Item is itself an iterator of serializers
+    // Then our calling functions will decide how to treat
+    // the stream of Option<T>s (i.e. stop early or merge
+    // to vec)
     type Item = String;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -104,28 +108,6 @@ enum NodeType {
     File,
     Dir,
 }
-
-//struct DataPathWalker {
-//data_path: DataPath,
-//node_type: NodeType,
-//}
-
-//impl Iterator for DataPathWalker {
-// //TODO Item is an iterator of files
-//type Item = String;
-
-//fn next(&mut self) -> Option<Self::Item> {
-//type NT = NodeType;
-//match self.node_type {
-//NT::Dir => {
-//self.data_path = self.data_path.next();
-//self.node_type = NT::File;
-//}
-//NT::File => {}
-//}
-//Some("Fuck".to_owned())
-//}
-//}
 
 #[cfg(test)]
 mod tests {
