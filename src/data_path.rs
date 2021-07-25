@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Error, Result};
 use impls::impls;
 use serde::Deserialize;
 use std::iter::{IntoIterator, Iterator};
@@ -20,14 +20,20 @@ struct DataPath {
 }
 
 impl DataPath {
-    pub fn new(base_dir: &Path, key_path: Vec<&'static str>) -> Self {
+    pub fn new(base_dir: &Path, key_path: Vec<&'static str>) -> Result<Self> {
+        if !base_dir.is_dir() {
+            return Err(Error::msg(format!(
+                "DataPath base {} is not a directory",
+                base_dir.to_str().unwrap_or("None")
+            )));
+        }
         let mut dp = Self {
             read_path: PathBuf::from(base_dir),
             reverse_key_path: key_path,
             node_type: NodeType::Dir,
         };
         dp.reverse_key_path.reverse();
-        dp
+        Ok(dp)
     }
 
     // TODO doctest the shit out of this
@@ -39,6 +45,9 @@ impl DataPath {
                 &*self
             }),
             NodeType::File => {
+                if !self.read_path.is_dir() {
+                    return None;
+                }
                 self.node_type = NodeType::Dir;
                 Some(&*self)
             }
@@ -54,6 +63,21 @@ impl DataPath {
         T: for<'de> Deserialize<'de> + std::fmt::Debug,
     {
         todo!()
+    }
+}
+
+struct DataPathIter {
+    data_path: Option<DataPath>,
+}
+
+impl Iterator for DataPathIter {
+    type Item = String;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(ref mut data_path) = self.data_path {
+            data_path.next();
+        }
+        Some("balls".to_owned())
     }
 }
 
@@ -108,9 +132,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn data_path_next() {
+    fn data_path_next() -> Result<()> {
         let mut results: Vec<String> = vec![];
-        let mut dp = DataPath::new(&Path::new("/tmp"), vec!["a", "b", "c"]);
+        let mut dp = DataPath::new(&Path::new("/tmp"), vec!["a", "b", "c"])?;
         // TODO unstupid and an iterator.map.collect
         loop {
             results.push(format!("{}", dp));
@@ -130,5 +154,6 @@ mod tests {
                 "Dir(/tmp/a/b/c)",
             ]
         );
+        Ok(())
     }
 }
