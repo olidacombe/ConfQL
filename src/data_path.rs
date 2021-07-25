@@ -31,16 +31,16 @@ impl DataPath {
     }
 
     // TODO doctest the shit out of this
-    pub fn next(mut self) -> Option<Self> {
+    pub fn next(&mut self) -> Option<&Self> {
         match self.node_type {
-            NodeType::Dir => self.reverse_key_path.pop().map(|dir| {
+            NodeType::Dir => self.reverse_key_path.pop().map(move |dir| {
                 self.read_path.push(dir);
                 self.node_type = NodeType::File;
-                self
+                &*self
             }),
             NodeType::File => {
                 self.node_type = NodeType::Dir;
-                Some(self)
+                Some(&*self)
             }
         }
     }
@@ -110,17 +110,12 @@ mod tests {
     #[test]
     fn data_path_next() {
         let mut results: Vec<String> = vec![];
-        let mut dp = Some(DataPath::new(&Path::new("/tmp"), vec!["a", "b", "c"]));
+        let mut dp = DataPath::new(&Path::new("/tmp"), vec!["a", "b", "c"]);
         // TODO unstupid and an iterator.map.collect
         loop {
-            match dp {
-                Some(p) => {
-                    results.push(format!("{}", p));
-                    dp = p.next();
-                }
-                None => {
-                    break;
-                }
+            results.push(format!("{}", dp));
+            if let None = dp.next() {
+                break;
             }
         }
         assert_eq!(
