@@ -130,11 +130,16 @@ enum NodeType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use temp_testdir::TempDir;
 
     #[test]
     fn data_path_next() -> Result<()> {
         let mut results: Vec<String> = vec![];
-        let mut dp = DataPath::new(&Path::new("/tmp"), vec!["a", "b", "c"])?;
+        let temp = TempDir::default();
+        let base = temp.to_str().unwrap();
+        fs::create_dir_all(temp.join("a").join("b").join("c")).unwrap();
+        let mut dp = DataPath::new(&temp, vec!["a", "b", "c"])?;
         // TODO unstupid and an iterator.map.collect
         loop {
             results.push(format!("{}", dp));
@@ -153,6 +158,9 @@ mod tests {
                 "File(/tmp/a/b/c)",
                 "Dir(/tmp/a/b/c)",
             ]
+            .iter()
+            .map(|s| s.replace("/tmp", base))
+            .collect::<Vec<String>>()
         );
         Ok(())
     }

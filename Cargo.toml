@@ -17,3 +17,4 @@ serde_yaml = "0.8"
 
 [dev-dependencies]
 actix-rt = "*"
+temp_testdir = "0.2"
