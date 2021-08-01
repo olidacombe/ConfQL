@@ -1,26 +1,28 @@
 use anyhow::{Error, Result};
 use impls::impls;
 use serde::Deserialize;
+use std::fs;
+use std::iter;
 use std::iter::{IntoIterator, Iterator};
 use std::path::{Path, PathBuf};
 
-macro_rules! gql_single_or_collection {
-    ($T:ty, $a:expr, $b:expr) => {
-        match impls!($T: IntoIterator) {
-            false => $a,
-            true => $b,
-        }
-    };
-}
+//macro_rules! gql_single_or_collection {
+//($T:ty, $a:expr, $b:expr) => {
+//match impls!($T: IntoIterator) {
+//false => $a,
+//true => $b,
+//}
+//};
+//}
 
-struct DataPath {
+pub struct DataPath<'a> {
     read_path: PathBuf,
-    reverse_key_path: Vec<&'static str>,
+    reverse_key_path: Vec<&'a str>,
     node_type: NodeType,
 }
 
-impl DataPath {
-    pub fn new(base_dir: &Path, key_path: Vec<&'static str>) -> Result<Self> {
+impl<'a> DataPath<'a> {
+    pub fn new(base_dir: &Path, key_path: Vec<&'a str>) -> Result<Self> {
         if !base_dir.is_dir() {
             return Err(Error::msg(format!(
                 "DataPath base {} is not a directory",
@@ -34,6 +36,27 @@ impl DataPath {
         };
         dp.reverse_key_path.reverse();
         Ok(dp)
+    }
+
+    pub fn file_iterator(&self) -> Box<Iterator<Item = PathBuf>> {
+        match self.node_type {
+            NodeType::Dir => match self.reverse_key_path.is_empty() {
+                false => Box::new(iter::once(self.read_path.join("index.yml"))),
+                true => {
+                    let reader = fs::read_dir(&self.read_path);
+                    match !reader.is_ok() {
+                        true => Box::new(
+                            reader
+                                .unwrap()
+                                .filter_map(|dir_entry| dir_entry.ok())
+                                .map(|dir_entry| dir_entry.path()),
+                        ),
+                        false => Box::new(iter::empty::<PathBuf>()),
+                    }
+                }
+            },
+            NodeType::File => Box::new(iter::once(self.read_path.with_extension(".yml"))),
+        }
     }
 
     // TODO doctest the shit out of this
@@ -54,9 +77,9 @@ impl DataPath {
         }
     }
 
-    fn filenames<T>(&self) -> Vec<&'static str> {
-        gql_single_or_collection!(T, vec!["index.yml"], vec!["*.yml"])
-    }
+    //fn filenames<T>(&self) -> Vec<&'a str> {
+    //gql_single_or_collection!(T, vec!["index.yml"], vec!["*.yml"])
+    //}
 
     pub async fn get_object<T>(&self) -> Result<T>
     where
@@ -66,11 +89,11 @@ impl DataPath {
     }
 }
 
-struct DataPathIter {
-    data_path: Option<DataPath>,
+struct DataPathIter<'a> {
+    data_path: Option<DataPath<'a>>,
 }
 
-impl Iterator for DataPathIter {
+impl<'a> Iterator for DataPathIter<'a> {
     // TODO Item is itself an iterator of serializers
     // Then our calling functions will decide how to treat
     // the stream of Option<T>s (i.e. stop early or merge
@@ -78,14 +101,20 @@ impl Iterator for DataPathIter {
     type Item = String;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(ref mut data_path) = self.data_path {
-            data_path.next();
+        // TODO convert to map
+        match self.data_path {
+            Some(ref mut data_path) => {
+                //let ret = data_path.file_iterator();
+                data_path.next();
+                //Some(ret)
+                Some("balls".to_owned())
+            }
+            None => None,
         }
-        Some("balls".to_owned())
     }
 }
 
-impl std::fmt::Display for DataPath {
+impl<'a> std::fmt::Display for DataPath<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut display = format!(
             "{}({})",
@@ -148,44 +177,6 @@ mod tests {
             .map(|s| s.replace("/tmp", base))
             .collect::<Vec<String>>()
         );
-        Ok(())
-    }
-
-    #[test]
-    fn data_resolver_iterator() -> Result<()> {
-        type T = Vec<Hero>;
-        let resolver = DataPath::new(&DATA_PATH, vec!["heroes"]);
-        let mut results = Vec::<Option<T>>::new();
-
-        //for result in resolver {
-        //results.push(result);
-        //}
-
-        assert_eq!(
-            results,
-            vec![
-                Some(vec![Hero {
-                    // index.yml
-                    name: "Andy Anderson".to_owned(),
-                    id: 1,
-                    powers: vec!["eating".to_owned(), "sleeping".to_owned()]
-                }]),
-                None, // heroes.yml (doesn't exist)
-                Some(vec![Hero {
-                    // heroes/charles.yml
-                    name: "Charles Charleston".to_owned(),
-                    id: 3,
-                    powers: vec!["moaning".to_owned(), "cheating".to_owned()]
-                }]),
-                Some(vec![Hero {
-                    // heroes/kevin.yml
-                    name: "Kevin Kevinson".to_owned(),
-                    id: 2,
-                    powers: vec!["hunting".to_owned(), "fighting".to_owned()]
-                }]),
-            ]
-        );
-
         Ok(())
     }
 }

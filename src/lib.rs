@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_yaml::Value;
 use std::path::Path;
 
-mod data_path;
+mod data_resolver;
 
 macro_rules! typename {
     ($T:ty) => {
