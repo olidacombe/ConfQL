@@ -1,21 +1,11 @@
 [package]
-name = "confql"
+name = "fixtures"
 version = "0.1.0"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1"
 async-graphql = "2.0"
-colored = "2.0.0"
-impls = "1"
-itertools = "0.10.1"
 lazy_static = "1.4.0"
 serde = "1.0"
-serde_yaml = "0.8"
-
-[dev-dependencies]
-actix-rt = "*"
-fixtures = { path = "fixtures" }
-temp_testdir = "0.2"
