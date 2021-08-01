@@ -130,6 +130,7 @@ mod tests {
         async fn losers(&self) -> Vec<Hero> {
             vec![Hero {
                 name: "Bobby".to_owned(),
+                id: 99,
                 powers: vec![],
             }]
         }

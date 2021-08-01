@@ -6,5 +6,5 @@ use std::path::Path;
 pub mod models;
 
 lazy_static! {
-    static ref DATA_PATH: &'static Path = Path::new(module_path!());
+    pub static ref DATA_PATH: &'static Path = Path::new(module_path!());
 }
