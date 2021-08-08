@@ -7,6 +7,8 @@ struct DataResolver<'a> {
     data_path: DataPath<'a>,
 }
 
+impl<'a> DataResolver<'a> {}
+
 #[cfg(test)]
 mod tests {
     extern crate fixtures;
@@ -15,12 +17,12 @@ mod tests {
     use fixtures::models::Hero;
     use fixtures::DATA_PATH;
     use std::fs;
-    use temp_testdir::TempDir;
 
     #[test]
     fn data_resolver_iterator() -> Result<()> {
         type T = Vec<Hero>;
-        let resolver = DataPath::new(&DATA_PATH, vec!["heroes"]);
+        let data_path = DataPath::new(&DATA_PATH, vec!["heroes"])?;
+        let data_resolver = DataResolver { data_path };
         let mut results = Vec::<Option<T>>::new();
 
         //for result in resolver {

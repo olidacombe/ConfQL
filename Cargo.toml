@@ -18,4 +18,5 @@ serde_yaml = "0.8"
 [dev-dependencies]
 actix-rt = "*"
 fixtures = { path = "fixtures" }
-temp_testdir = "0.2"
+tempdir = "0.3.7"
+touch = "0"
