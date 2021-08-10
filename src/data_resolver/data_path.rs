@@ -38,9 +38,9 @@ impl<'a> DataPath<'a> {
         Ok(dp)
     }
 
-    pub fn files(&self) -> Box<dyn Iterator<Item = PathBuf>> {
+    pub fn files(&self, for_array_type: bool) -> Box<dyn Iterator<Item = PathBuf>> {
         match self.node_type {
-            NodeType::Dir => match self.reverse_key_path.is_empty() {
+            NodeType::Dir => match for_array_type && self.reverse_key_path.is_empty() {
                 false => Box::new(iter::once(self.read_path.join("index.yml"))),
                 true => match fs::read_dir(&self.read_path) {
                     Ok(reader) => Box::new(
@@ -73,10 +73,6 @@ impl<'a> DataPath<'a> {
         }
     }
 
-    //fn filenames<T>(&self) -> Vec<&'a str> {
-    //gql_single_or_collection!(T, vec!["index.yml"], vec!["*.yml"])
-    //}
-
     //pub async fn get_object<T>(&self) -> Result<T>
     //where
     //T: for<'de> Deserialize<'de> + std::fmt::Debug,
@@ -91,6 +87,7 @@ impl<'a> DataPath<'a> {
 
 struct DataPathIter<'a> {
     data_path: Option<DataPath<'a>>,
+    for_array_type: bool,
 }
 
 impl<'a> Iterator for DataPathIter<'a> {
@@ -107,7 +104,7 @@ impl<'a> Iterator for DataPathIter<'a> {
         // TODO convert to map
         match self.data_path {
             Some(ref mut data_path) => {
-                let ret = data_path.files();
+                let ret = data_path.files(self.for_array_type);
                 data_path.next();
                 Some(ret)
             }
@@ -219,9 +216,9 @@ mod tests {
     }
 
     macro_rules! assert_files_iterator_result {
-        ($data_path:expr, $expected:expr, $base:expr) => {
+        ($data_path:expr, $for_array_type:expr, $expected:expr, $base:expr) => {
             let mut vec_to_compare = $data_path
-                .files()
+                .files($for_array_type)
                 .map(|ref f| {
                     (f.strip_prefix($base).unwrap_or(f))
                         .to_str()
@@ -245,7 +242,8 @@ mod tests {
             node_type: NodeType::Dir,
         };
 
-        assert_files_iterator_result!(data_path, vec!["index.yml"], &path_buf);
+        assert_files_iterator_result!(data_path, false, vec!["index.yml"], &path_buf);
+        assert_files_iterator_result!(data_path, true, vec!["index.yml"], &path_buf);
 
         Ok(())
     }
@@ -261,13 +259,14 @@ mod tests {
             node_type: NodeType::File,
         };
 
-        assert_files_iterator_result!(data_path, vec!["a.yml"], &path_buf);
+        assert_files_iterator_result!(data_path, false, vec!["a.yml"], &path_buf);
+        assert_files_iterator_result!(data_path, true, vec!["a.yml"], &path_buf);
 
         Ok(())
     }
 
     #[test]
-    fn data_path_files_leaf_dir() -> Result<()> {
+    fn data_path_files_leaf_dir_non_array_type() -> Result<()> {
         let temp = data_path_test_files()?;
         let path_buf = temp.path().to_path_buf();
 
@@ -279,6 +278,28 @@ mod tests {
 
         assert_files_iterator_result!(
             data_path,
+            false,
+            vec!["index.yml"],
+            &path_buf.join("a").join("b").join("c")
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn data_path_files_leaf_dir_array_type() -> Result<()> {
+        let temp = data_path_test_files()?;
+        let path_buf = temp.path().to_path_buf();
+
+        let data_path = DataPath {
+            read_path: temp.path().join("a").join("b").join("c"),
+            reverse_key_path: vec![],
+            node_type: NodeType::Dir,
+        };
+
+        assert_files_iterator_result!(
+            data_path,
+            true,
             vec!["1.yml", "2.yml", "3.yml"],
             &path_buf.join("a").join("b").join("c")
         );
