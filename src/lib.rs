@@ -1,20 +1,7 @@
 #[macro_use]
 extern crate lazy_static;
 
-use anyhow::{Context, Error, Result};
-use itertools::FoldWhile::{Continue, Done};
-use itertools::Itertools;
-use serde::Deserialize;
-use serde_yaml::Value;
-use std::path::Path;
-
 mod data_resolver;
-
-macro_rules! typename {
-    ($T:ty) => {
-        std::any::type_name::<$T>()
-    };
-}
 
 //struct Settings<'a> {
 //index_filenames: Vec<&'a str>,
@@ -56,58 +43,6 @@ macro_rules! yaml {
     ($e:literal) => {
         serde_yaml::from_str::<serde_yaml::Value>($e).unwrap()
     };
-}
-
-/// Returns reference to sub-value of a deserialized Value
-///
-/// # Examples
-///
-/// ```
-/// # use confql::{get_sub_value,yaml};
-/// let value = yaml!(r"#---
-/// A:
-///   B:
-///     C:
-///       presence: welcome
-/// #");
-///
-/// let sub_value = get_sub_value(&value, &vec![])?;
-/// assert_eq!(*sub_value, value);
-///
-/// let sub_value = get_sub_value(&value, &vec!["A", "B"])?;
-/// assert_eq!(*sub_value, yaml!(r#"---
-/// C:
-///   presence: welcome
-/// "#));
-/// # Ok::<(), anyhow::Error>(())
-/// ```
-pub fn get_sub_value<'a>(value: &'a Value, index: &[&str]) -> Result<&'a Value> {
-    return index
-        .iter()
-        .fold_while(Ok(value), |acc, i| match acc.unwrap().get(i) {
-            Some(v) => Continue(Ok(v)),
-            _ => Done(Err(Error::msg(format!("Key {} not found", i,)))),
-        })
-        .into_inner();
-}
-
-// TODO
-// - eat index, building path, and merging up
-// - indicator of whether we're looking for an array
-//     - if so then when index is empty (e.g. heroes directory)
-//       assume each file is an array item
-// - indicator of what field a filename should provide a default for
-//   in the case of above array scenario
-async fn get_object_from_path<T>(path: &Path, index: &[&str]) -> Result<T>
-where
-    T: for<'de> Deserialize<'de> + std::fmt::Debug,
-{
-    let file = std::fs::File::open(path)?;
-    let value = serde_yaml::from_reader::<_, Value>(file)?;
-    let object = get_sub_value(&value, index)?;
-    let object: T = serde_yaml::from_value(object.to_owned())
-        .context(format!("Failed to deserialize to {}", typename!(T)))?;
-    Ok(object)
 }
 
 #[cfg(test)]
