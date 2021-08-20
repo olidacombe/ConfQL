@@ -8,6 +8,7 @@ use serde_yaml::Value;
 use std::fs;
 use std::iter;
 use std::iter::{IntoIterator, Iterator};
+use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
 //macro_rules! gql_single_or_collection {
@@ -64,7 +65,7 @@ impl<'a> DataPath<'a> {
         match self.node_type {
             NodeType::Dir => match for_array_type && self.reverse_key_path.is_empty() {
                 false => Box::new(iter::once(self.read_path.join("index.yml"))),
-                true => match fs::read_dir(self.read_path) {
+                true => match fs::read_dir(&self.read_path) {
                     Ok(reader) => Box::new(
                         reader
                             .filter_map(|dir_entry| dir_entry.ok())
@@ -142,6 +143,7 @@ struct DataPathIter<'a, T> {
     data_path: Option<DataPath<'a>>,
     file_iterator: Box<dyn Iterator<Item = PathBuf> + 'a>,
     for_array_type: bool,
+    t: PhantomData<T>,
 }
 
 impl<'a, T> Iterator for DataPathIter<'a, T>
@@ -168,7 +170,6 @@ where
                 None => match data_path.next() {
                     Some(data_path) => {
                         self.file_iterator = data_path.files(self.for_array_type);
-                        self.data_path = Some(*data_path);
                     }
                     None => self.data_path = None,
                 },
