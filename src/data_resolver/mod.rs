@@ -8,34 +8,20 @@ use serde::Deserialize;
 use serde_yaml::Value;
 use std::path::Path;
 
-macro_rules! typename {
-    ($T:ty) => {
-        std::any::type_name::<$T>()
-    };
-}
-
-/// Returns reference to sub-value of a deserialized Value
-fn get_sub_value<'a>(value: &'a Value, index: &[&str]) -> Result<&'a Value> {
-    return index
-        .iter()
-        .fold_while(Ok(value), |acc, i| match acc.unwrap().get(i) {
-            Some(v) => Continue(Ok(v)),
-            _ => Done(Err(Error::msg(format!("Key {} not found", i,)))),
-        })
-        .into_inner();
-}
-
-fn get_object_from_path<T>(path: &Path, index: &[&str]) -> Result<T>
-where
-    T: for<'de> Deserialize<'de> + std::fmt::Debug,
-{
-    let file = std::fs::File::open(path)?;
-    let value = serde_yaml::from_reader::<_, Value>(file)?;
-    let object = get_sub_value(&value, index)?;
-    let object: T = serde_yaml::from_value(object.to_owned())
-        .context(format!("Failed to deserialize to {}", typename!(T)))?;
-    Ok(object)
-}
+// impl DataPath<'_> {
+//     fn get_object<T>(&self) -> Result<T>
+//     where
+//         T: for<'de> Deserialize<'de> + std::fmt::Debug,
+//     {
+//         let file = self.open()?;
+//         let value = serde_yaml::from_reader::<_, Value>(file)
+//             .with_context(|| format!("Failed to parse {}", &self))?;
+//         let object = get_sub_value_reverse_index(&value, &self.key_path())?;
+//         let object: T = serde_yaml::from_value(object.to_owned())
+//             .context(format!("Failed to deserialize to {}", typename!(T)))?;
+//         Ok(object)
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -47,47 +33,18 @@ mod tests {
     use std::fs;
 
     #[test]
-    fn test_get_sub_value() -> Result<()> {
-        use crate::data_resolver::get_sub_value;
-        use crate::yaml;
-        let value = yaml!(
-            r"#---
-            A:
-                B:
-                    C:
-                        presence: welcome
-            #"
-        );
+    fn test_data_path_get_object() -> Result<()> {
+        // let result: Vec<Hero> = DataPath::new(&DATA_PATH, vec!["heroes"])?.get_object()?;
 
-        let sub_value = get_sub_value(&value, &vec![])?;
-        assert_eq!(*sub_value, value);
+        // assert_eq!(
+        //     result,
+        //     vec![Hero {
+        //         name: "Andy Anderson".to_owned(),
+        //         id: 1,
+        //         powers: vec!["eating".to_owned(), "sleeping".to_owned()]
+        //     }]
+        // );
 
-        let sub_value = get_sub_value(&value, &vec!["A", "B"])?;
-        assert_eq!(
-            *sub_value,
-            yaml!(
-                r#"---
-                C:
-                    presence: welcome
-                "#
-            )
-        );
-        Ok::<(), anyhow::Error>(())
-    }
-
-    #[test]
-    fn test_get_object_from_path() -> Result<()> {
-        let result: Vec<Hero> = get_object_from_path(&DATA_PATH.join("index.yml"), &["heroes"])?;
-
-        assert_eq!(
-            result,
-            vec![Hero {
-                // index.yml
-                name: "Andy Anderson".to_owned(),
-                id: 1,
-                powers: vec!["eating".to_owned(), "sleeping".to_owned()]
-            }]
-        );
         // assert_eq!(
         //     results,
         //     vec![

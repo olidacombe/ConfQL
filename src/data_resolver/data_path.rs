@@ -1,6 +1,10 @@
-use anyhow::{Error, Result};
+use crate::data_resolver;
+use anyhow::{Context, Error, Result};
 use impls::impls;
+use itertools::FoldWhile::{Continue, Done};
+use itertools::Itertools;
 use serde::Deserialize;
+use serde_yaml::Value;
 use std::fs;
 use std::iter;
 use std::iter::{IntoIterator, Iterator};
@@ -14,6 +18,24 @@ use std::path::{Path, PathBuf};
 //}
 //};
 //}
+
+macro_rules! typename {
+    ($T:ty) => {
+        std::any::type_name::<$T>()
+    };
+}
+
+/// Returns reference to sub-value of a deserialized Value
+fn get_sub_value_reverse_index<'a>(value: &'a Value, reverse_index: &[&str]) -> Result<&'a Value> {
+    return reverse_index
+        .iter()
+        .rev()
+        .fold_while(Ok(value), |acc, i| match acc.unwrap().get(i) {
+            Some(v) => Continue(Ok(v)),
+            _ => Done(Err(Error::msg(format!("Key {} not found", i,)))),
+        })
+        .into_inner();
+}
 
 pub struct DataPath<'a> {
     read_path: PathBuf,
@@ -38,11 +60,11 @@ impl<'a> DataPath<'a> {
         Ok(dp)
     }
 
-    pub fn files(&self, for_array_type: bool) -> Box<dyn Iterator<Item = PathBuf>> {
+    pub fn files(&self, for_array_type: bool) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
         match self.node_type {
             NodeType::Dir => match for_array_type && self.reverse_key_path.is_empty() {
                 false => Box::new(iter::once(self.read_path.join("index.yml"))),
-                true => match fs::read_dir(&self.read_path) {
+                true => match fs::read_dir(self.read_path) {
                     Ok(reader) => Box::new(
                         reader
                             .filter_map(|dir_entry| dir_entry.ok())
@@ -80,17 +102,52 @@ impl<'a> DataPath<'a> {
     //todo!()
     //}
 
-    fn objects<T: 'static>(&self) -> Box<dyn Iterator<Item = Option<T>>> {
-        Box::new(iter::once(None))
+    fn get_object<T>(&self, path: PathBuf) -> Result<T>
+    where
+        T: for<'de> Deserialize<'de> + std::fmt::Debug,
+    {
+        let file = std::fs::File::open(&path)?;
+        let value = serde_yaml::from_reader::<_, Value>(file)
+            .with_context(|| format!("Failed to parse {}", &self))?;
+        let object = get_sub_value_reverse_index(&value, &self.key_path())?;
+        let object: T = serde_yaml::from_value(object.to_owned())
+            .context(format!("Failed to deserialize to {}", typename!(T)))?;
+        Ok(object)
+    }
+
+    // fn objects<T>(&self, for_array_type: bool) -> Box<dyn Iterator<Item = T> + 'a>
+    // where
+    //     T: for<'de> Deserialize<'de> + std::fmt::Debug,
+    // {
+    //     Box::new(
+    //         self.files(for_array_type)
+    //             .map(|f| self.get_object(f))
+    //             .filter(|o| o.is_ok())
+    //             .map(|v| v.unwrap()),
+    //     )
+    // }
+
+    pub fn key_path(&self) -> Vec<&'a str> {
+        let mut key_path = self.reverse_key_path.clone();
+        key_path.reverse();
+        key_path
+    }
+
+    pub fn open(&self) -> Result<std::fs::File> {
+        Ok(std::fs::File::open(&self.read_path)?)
     }
 }
 
-struct DataPathIter<'a> {
+struct DataPathIter<'a, T> {
     data_path: Option<DataPath<'a>>,
+    file_iterator: Box<dyn Iterator<Item = PathBuf> + 'a>,
     for_array_type: bool,
 }
 
-impl<'a> Iterator for DataPathIter<'a> {
+impl<'a, T> Iterator for DataPathIter<'a, T>
+where
+    T: for<'de> Deserialize<'de> + std::fmt::Debug,
+{
     // TODO Item is itself an iterator of serializers
     // Then our calling functions will decide how to treat
     // the stream of Option<T>s (i.e. stop early or merge
@@ -98,18 +155,26 @@ impl<'a> Iterator for DataPathIter<'a> {
     // TODO pt.2 also ref the key path slice ... might rework
     // all that vec stuff to just &[str&] or whatever and
     // keep it slicey?
-    type Item = Box<dyn Iterator<Item = PathBuf>>;
+    type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // TODO convert to map
-        match self.data_path {
-            Some(ref mut data_path) => {
-                let ret = data_path.files(self.for_array_type);
-                data_path.next();
-                Some(ret)
+        while let Some(ref mut data_path) = self.data_path {
+            match self.file_iterator.next() {
+                Some(path) => {
+                    if let Ok(object) = data_path.get_object(path) {
+                        return object;
+                    }
+                }
+                None => match data_path.next() {
+                    Some(data_path) => {
+                        self.file_iterator = data_path.files(self.for_array_type);
+                        self.data_path = Some(*data_path);
+                    }
+                    None => self.data_path = None,
+                },
             }
-            None => None,
         }
+        None
     }
 }
 
@@ -305,5 +370,55 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn test_get_sub_value_reverse_index() -> Result<()> {
+        use crate::yaml;
+        let value = yaml!(
+            r"#---
+            A:
+                B:
+                    C:
+                        presence: welcome
+            #"
+        );
+
+        let sub_value = get_sub_value_reverse_index(&value, &vec![])?;
+        assert_eq!(*sub_value, value);
+
+        let sub_value = get_sub_value_reverse_index(&value, &vec!["A"])?;
+        assert_eq!(
+            *sub_value,
+            yaml!(
+                r#"---
+                B:
+                    C:
+                        presence: welcome
+                "#
+            )
+        );
+
+        let sub_value = get_sub_value_reverse_index(&value, &vec!["B", "A"])?;
+        assert_eq!(
+            *sub_value,
+            yaml!(
+                r#"---
+                C:
+                    presence: welcome
+                "#
+            )
+        );
+
+        let sub_value = get_sub_value_reverse_index(&value, &vec!["C", "B", "A"])?;
+        assert_eq!(
+            *sub_value,
+            yaml!(
+                r#"---
+                presence: welcome
+                "#
+            )
+        );
+        Ok::<(), anyhow::Error>(())
     }
 }
