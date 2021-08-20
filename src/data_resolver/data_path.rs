@@ -78,7 +78,6 @@ impl<'a> DataPath<'a> {
         }
     }
 
-    // TODO doctest the shit out of this
     pub fn next(&mut self) -> Option<&Self> {
         match self.node_type {
             NodeType::Dir => self.reverse_key_path.pop().map(move |dir| {
@@ -96,13 +95,6 @@ impl<'a> DataPath<'a> {
         }
     }
 
-    //pub async fn get_object<T>(&self) -> Result<T>
-    //where
-    //T: for<'de> Deserialize<'de> + std::fmt::Debug,
-    //{
-    //todo!()
-    //}
-
     fn get_object<T>(&self, path: PathBuf) -> Result<T>
     where
         T: for<'de> Deserialize<'de> + std::fmt::Debug,
@@ -116,47 +108,43 @@ impl<'a> DataPath<'a> {
         Ok(object)
     }
 
-    // fn objects<T>(&self, for_array_type: bool) -> Box<dyn Iterator<Item = T> + 'a>
-    // where
-    //     T: for<'de> Deserialize<'de> + std::fmt::Debug,
-    // {
-    //     Box::new(
-    //         self.files(for_array_type)
-    //             .map(|f| self.get_object(f))
-    //             .filter(|o| o.is_ok())
-    //             .map(|v| v.unwrap()),
-    //     )
-    // }
-
     pub fn key_path(&self) -> Vec<&'a str> {
         let mut key_path = self.reverse_key_path.clone();
         key_path.reverse();
         key_path
     }
-
-    pub fn open(&self) -> Result<std::fs::File> {
-        Ok(std::fs::File::open(&self.read_path)?)
-    }
 }
 
-struct DataPathIter<'a, T> {
+pub struct DataPathIter<'a, T> {
     data_path: Option<DataPath<'a>>,
     file_iterator: Box<dyn Iterator<Item = PathBuf> + 'a>,
     for_array_type: bool,
     t: PhantomData<T>,
 }
 
+impl<'a, T> DataPathIter<'a, T> {
+    pub fn new(base_dir: &Path, key_path: Vec<&'a str>, for_array_type: bool) -> Self {
+        match DataPath::new(base_dir, key_path) {
+            Ok(data_path) => Self {
+                file_iterator: data_path.files(for_array_type),
+                data_path: Some(data_path),
+                for_array_type,
+                t: PhantomData,
+            },
+            _ => Self {
+                file_iterator: Box::new(iter::empty::<PathBuf>()),
+                data_path: None,
+                for_array_type,
+                t: PhantomData,
+            },
+        }
+    }
+}
+
 impl<'a, T> Iterator for DataPathIter<'a, T>
 where
     T: for<'de> Deserialize<'de> + std::fmt::Debug,
 {
-    // TODO Item is itself an iterator of serializers
-    // Then our calling functions will decide how to treat
-    // the stream of Option<T>s (i.e. stop early or merge
-    // to vec)
-    // TODO pt.2 also ref the key path slice ... might rework
-    // all that vec stuff to just &[str&] or whatever and
-    // keep it slicey?
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
