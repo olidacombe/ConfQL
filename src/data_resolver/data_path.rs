@@ -408,6 +408,52 @@ mod tests {
                 "#
             )
         );
-        Ok::<(), anyhow::Error>(())
+        Ok(())
+    }
+
+    #[test]
+    fn test_data_path_iter_mono() -> Result<()> {
+        let result: Vec<Vec<Hero>> = DataPathIter::new(&DATA_PATH, vec!["heroes"], false).collect();
+
+        assert_eq!(
+            result,
+            vec![vec![Hero {
+                // index.yml
+                name: "Andy Anderson".to_owned(),
+                id: 1,
+                powers: vec!["eating".to_owned(), "sleeping".to_owned()]
+            }]]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_data_path_iter_multi() -> Result<()> {
+        let result: Vec<Vec<Hero>> = DataPathIter::new(&DATA_PATH, vec!["heroes"], true).collect();
+
+        assert_eq!(
+            result,
+            vec![
+                vec![Hero {
+                    // index.yml
+                    name: "Andy Anderson".to_owned(),
+                    id: 1,
+                    powers: vec!["eating".to_owned(), "sleeping".to_owned()]
+                }],
+                vec![Hero {
+                    // heroes/charles.yml
+                    name: "Charles Charleston".to_owned(),
+                    id: 3,
+                    powers: vec!["moaning".to_owned(), "cheating".to_owned()]
+                }],
+                vec![Hero {
+                    // heroes/kevin.yml
+                    name: "Kevin Kevinson".to_owned(),
+                    id: 2,
+                    powers: vec!["hunting".to_owned(), "fighting".to_owned()]
+                }]
+            ]
+        );
+        Ok(())
     }
 }
