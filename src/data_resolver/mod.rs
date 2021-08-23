@@ -10,14 +10,23 @@ use std::iter::{IntoIterator, Iterator};
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
-//macro_rules! gql_single_or_collection {
-//($T:ty, $a:expr, $b:expr) => {
-//match impls!($T: IntoIterator) {
-//false => $a,
-//true => $b,
-//}
-//};
-//}
+macro_rules! is_vec {
+    (Vec<$T: ty>) => {
+        true
+    };
+    ($T: ty) => {
+        false
+    };
+}
+
+macro_rules! if_vec_else {
+    (Vec<$T: ty>, $when_true: expr, $when_false: expr) => {
+        $when_true
+    };
+    ($T: ty, $when_true: expr, $when_false: expr) => {
+        $when_false
+    };
+}
 
 macro_rules! typename {
     ($T:ty) => {
@@ -457,5 +466,40 @@ mod tests {
             ]
         );
         Ok(())
+    }
+
+    #[test]
+    fn test_if_vec_else() {
+        let s = if_vec_else!(
+            Vec<i64>,
+            {
+                let r = "is vec";
+                r
+            },
+            {
+                let r = "not vec";
+                r
+            }
+        );
+        assert_eq!(s, "is vec");
+
+        let s = if_vec_else!(
+            i64,
+            {
+                let r = "is vec";
+                r
+            },
+            {
+                let r = "not vec";
+                r
+            }
+        );
+        assert_eq!(s, "not vec")
+    }
+
+    #[test]
+    fn test_is_vec() {
+        assert_eq!(is_vec!(i64), false);
+        assert_eq!(is_vec!(Vec<i64>), true);
     }
 }
