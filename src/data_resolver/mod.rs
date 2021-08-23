@@ -37,13 +37,14 @@ fn get_sub_value_reverse_index<'a>(value: &'a Value, reverse_index: &[&str]) -> 
         .into_inner();
 }
 
-pub struct DataPath<'a> {
+pub struct DataPath<'a, T> {
     read_path: PathBuf,
     reverse_key_path: Vec<&'a str>,
     node_type: NodeType,
+    t: PhantomData<T>,
 }
 
-impl<'a> DataPath<'a> {
+impl<'a, T> DataPath<'a, T> {
     pub fn new(base_dir: &Path, key_path: Vec<&'a str>) -> Result<Self> {
         if !base_dir.is_dir() {
             return Err(Error::msg(format!(
@@ -55,6 +56,7 @@ impl<'a> DataPath<'a> {
             read_path: PathBuf::from(base_dir),
             reverse_key_path: key_path,
             node_type: NodeType::Dir,
+            t: PhantomData,
         };
         dp.reverse_key_path.reverse();
         Ok(dp)
@@ -94,7 +96,7 @@ impl<'a> DataPath<'a> {
         }
     }
 
-    fn get_object<T>(&self, path: PathBuf) -> Result<T>
+    fn get_object(&self, path: PathBuf) -> Result<T>
     where
         T: for<'de> Deserialize<'de> + std::fmt::Debug,
     {
@@ -115,10 +117,9 @@ impl<'a> DataPath<'a> {
 }
 
 pub struct DataPathIter<'a, T> {
-    data_path: Option<DataPath<'a>>,
+    data_path: Option<DataPath<'a, T>>,
     file_iterator: Box<dyn Iterator<Item = PathBuf> + 'a>,
     for_array_type: bool,
-    t: PhantomData<T>,
 }
 
 impl<'a, T> DataPathIter<'a, T> {
@@ -128,13 +129,11 @@ impl<'a, T> DataPathIter<'a, T> {
                 file_iterator: data_path.files(for_array_type),
                 data_path: Some(data_path),
                 for_array_type,
-                t: PhantomData,
             },
             _ => Self {
                 file_iterator: Box::new(iter::empty::<PathBuf>()),
                 data_path: None,
                 for_array_type,
-                t: PhantomData,
             },
         }
     }
@@ -151,7 +150,7 @@ where
             match self.file_iterator.next() {
                 Some(path) => {
                     if let Ok(object) = data_path.get_object(path) {
-                        return object;
+                        return Some(object);
                     }
                 }
                 None => match data_path.next() {
@@ -166,7 +165,7 @@ where
     }
 }
 
-impl<'a> std::fmt::Display for DataPath<'a> {
+impl<'a, T> std::fmt::Display for DataPath<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut display = format!(
             "{}({})",
@@ -242,7 +241,7 @@ mod tests {
         let mut results = Vec::<String>::new();
         let temp = datatree(&["a", "b", "c"])?;
         let base = temp.path().to_str().unwrap();
-        let mut dp = DataPath::new(&temp.path(), vec!["a", "b", "c"])?;
+        let mut dp = DataPath::<bool>::new(&temp.path(), vec!["a", "b", "c"])?;
         // TODO unstupid and an iterator.map.collect
         loop {
             results.push(format!("{}", dp));
@@ -289,10 +288,11 @@ mod tests {
         let temp = data_path_test_files()?;
         let path_buf = temp.path().to_path_buf();
 
-        let data_path = DataPath {
+        let data_path = DataPath::<bool> {
             read_path: temp.path().to_path_buf(),
             reverse_key_path: vec!["a", "b"],
             node_type: NodeType::Dir,
+            t: PhantomData,
         };
 
         assert_files_iterator_result!(data_path, false, vec!["index.yml"], &path_buf);
@@ -306,10 +306,11 @@ mod tests {
         let temp = data_path_test_files()?;
         let path_buf = temp.path().to_path_buf();
 
-        let data_path = DataPath {
+        let data_path = DataPath::<bool> {
             read_path: temp.path().join("a"),
             reverse_key_path: vec!["b"],
             node_type: NodeType::File,
+            t: PhantomData,
         };
 
         assert_files_iterator_result!(data_path, false, vec!["a.yml"], &path_buf);
@@ -323,10 +324,11 @@ mod tests {
         let temp = data_path_test_files()?;
         let path_buf = temp.path().to_path_buf();
 
-        let data_path = DataPath {
+        let data_path = DataPath::<bool> {
             read_path: temp.path().join("a").join("b").join("c"),
             reverse_key_path: vec![],
             node_type: NodeType::Dir,
+            t: PhantomData,
         };
 
         assert_files_iterator_result!(
@@ -344,10 +346,11 @@ mod tests {
         let temp = data_path_test_files()?;
         let path_buf = temp.path().to_path_buf();
 
-        let data_path = DataPath {
+        let data_path = DataPath::<bool> {
             read_path: temp.path().join("a").join("b").join("c"),
             reverse_key_path: vec![],
             node_type: NodeType::Dir,
+            t: PhantomData,
         };
 
         assert_files_iterator_result!(
