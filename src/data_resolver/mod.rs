@@ -50,6 +50,7 @@ where
     T: for<'de> Deserialize<'de>,
 {
     fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf>> {
+        println!("Vec impl LeafItems<{}>", typename!(T));
         match fs::read_dir(&self.read_path) {
             Ok(reader) => Box::new(
                 reader
@@ -75,6 +76,7 @@ where
     T: for<'de> Deserialize<'de>,
 {
     fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
+        println!("impl LeafItems<{}>", typename!(T));
         self.dir_index()
     }
     fn leaf_object_from_value(&self, value: Value) -> Result<T> {
@@ -116,7 +118,7 @@ where
 
     pub fn files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
         match self.is_leaf() {
-            true => (&self).leaf_files(),
+            true => self.leaf_files(),
             false => match self.node_type {
                 NodeType::Dir => self.dir_index(),
                 NodeType::File => Box::new(iter::once(self.read_path.with_extension("yml"))),
