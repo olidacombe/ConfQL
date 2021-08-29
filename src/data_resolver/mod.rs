@@ -1,5 +1,4 @@
 use anyhow::{Context, Error, Result};
-use impls::impls;
 use itertools::FoldWhile::{Continue, Done};
 use itertools::Itertools;
 use serde::Deserialize;
@@ -9,24 +8,6 @@ use std::iter;
 use std::iter::{IntoIterator, Iterator};
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
-
-macro_rules! is_vec {
-    (Vec<$T: ty>) => {
-        true
-    };
-    ($T: ty) => {
-        false
-    };
-}
-
-macro_rules! if_vec_else {
-    (Vec<$T: ty>, $when_true: expr, $when_false: expr) => {
-        $when_true
-    };
-    ($T: ty, $when_true: expr, $when_false: expr) => {
-        $when_false
-    };
-}
 
 macro_rules! typename {
     ($T:ty) => {
@@ -46,14 +27,65 @@ fn get_sub_value_reverse_index<'a>(value: &'a Value, reverse_index: &[&str]) -> 
         .into_inner();
 }
 
-pub struct DataPath<'a, T> {
+pub struct DataPath<'a, T>
+where
+    T: for<'de> Deserialize<'de>,
+{
     read_path: PathBuf,
     reverse_key_path: Vec<&'a str>,
     node_type: NodeType,
     t: PhantomData<T>,
 }
 
-impl<'a, T> DataPath<'a, T> {
+trait LeafItems<'a, T>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a>;
+    fn leaf_object_from_value(&self, value: Value) -> Result<T>;
+}
+
+impl<'a, T> LeafItems<'a, Vec<T>> for DataPath<'a, Vec<T>>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf>> {
+        match fs::read_dir(&self.read_path) {
+            Ok(reader) => Box::new(
+                reader
+                    .filter_map(|dir_entry| dir_entry.ok())
+                    .map(|dir_entry| dir_entry.path()),
+            ),
+            _ => Box::new(iter::empty::<PathBuf>()),
+        }
+    }
+
+    fn leaf_object_from_value(&self, value: Value) -> Result<Vec<T>> {
+        let value = serde_yaml::from_value(value).context(format!(
+            "Failed to deserialize {} to construct Vec<{}>",
+            typename!(T),
+            typename!(T)
+        ))?;
+        Ok(vec![value])
+    }
+}
+
+impl<'a, T> LeafItems<'a, T> for &DataPath<'a, T>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
+        self.dir_index()
+    }
+    fn leaf_object_from_value(&self, value: Value) -> Result<T> {
+        self.object_from_value(value)
+    }
+}
+
+impl<'a, T> DataPath<'a, T>
+where
+    T: for<'de> Deserialize<'de>,
+{
     pub fn new(base_dir: &Path, key_path: Vec<&'a str>) -> Result<Self> {
         if !base_dir.is_dir() {
             return Err(Error::msg(format!(
@@ -71,19 +103,23 @@ impl<'a, T> DataPath<'a, T> {
         Ok(dp)
     }
 
-    pub fn files(&self, for_array_type: bool) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
+    fn dir_index(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
+        Box::new(iter::once(self.read_path.join("index.yml")))
+    }
+
+    fn is_leaf(&self) -> bool {
         match self.node_type {
-            NodeType::Dir => match for_array_type && self.reverse_key_path.is_empty() {
-                false => Box::new(iter::once(self.read_path.join("index.yml"))),
-                true => match fs::read_dir(&self.read_path) {
-                    Ok(reader) => Box::new(
-                        reader
-                            .filter_map(|dir_entry| dir_entry.ok())
-                            .map(|dir_entry| dir_entry.path()),
-                    ),
-                    _ => Box::new(iter::empty::<PathBuf>()),
-                },
-            },
+            NodeType::Dir => self.reverse_key_path.is_empty(),
+            _ => false,
+        }
+    }
+
+    pub fn files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
+        if self.is_leaf() {
+            return (&self).leaf_files();
+        }
+        match self.node_type {
+            NodeType::Dir => self.dir_index(),
             NodeType::File => Box::new(iter::once(self.read_path.with_extension("yml"))),
         }
     }
@@ -105,6 +141,13 @@ impl<'a, T> DataPath<'a, T> {
         }
     }
 
+    fn object_from_value(&self, value: Value) -> Result<T>
+    where
+        T: for<'de> Deserialize<'de>,
+    {
+        serde_yaml::from_value(value).context(format!("Failed to deserialize to {}", typename!(T)))
+    }
+
     fn get_object(&self, path: PathBuf) -> Result<T>
     where
         T: for<'de> Deserialize<'de> + std::fmt::Debug,
@@ -112,9 +155,11 @@ impl<'a, T> DataPath<'a, T> {
         let file = std::fs::File::open(&path)?;
         let value = serde_yaml::from_reader::<_, Value>(file)
             .with_context(|| format!("Failed to parse {}", &self))?;
-        let object = get_sub_value_reverse_index(&value, &self.key_path())?;
-        let object: T = serde_yaml::from_value(object.to_owned())
-            .context(format!("Failed to deserialize to {}", typename!(T)))?;
+        let value = get_sub_value_reverse_index(&value, &self.key_path())?.to_owned();
+        let object: T = match self.is_leaf() {
+            false => self.object_from_value(value),
+            true => self.leaf_object_from_value(value),
+        }?;
         Ok(object)
     }
 
@@ -125,24 +170,27 @@ impl<'a, T> DataPath<'a, T> {
     }
 }
 
-pub struct DataPathIter<'a, T> {
+pub struct DataPathIter<'a, T>
+where
+    T: for<'de> Deserialize<'de>,
+{
     data_path: Option<DataPath<'a, T>>,
     file_iterator: Box<dyn Iterator<Item = PathBuf> + 'a>,
-    for_array_type: bool,
 }
 
-impl<'a, T> DataPathIter<'a, T> {
-    pub fn new(base_dir: &Path, key_path: Vec<&'a str>, for_array_type: bool) -> Self {
+impl<'a, T> DataPathIter<'a, T>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    pub fn new(base_dir: &Path, key_path: Vec<&'a str>) -> Self {
         match DataPath::new(base_dir, key_path) {
             Ok(data_path) => Self {
-                file_iterator: data_path.files(for_array_type),
+                file_iterator: data_path.files(),
                 data_path: Some(data_path),
-                for_array_type,
             },
             _ => Self {
                 file_iterator: Box::new(iter::empty::<PathBuf>()),
                 data_path: None,
-                for_array_type,
             },
         }
     }
@@ -164,7 +212,7 @@ where
                 }
                 None => match data_path.next() {
                     Some(data_path) => {
-                        self.file_iterator = data_path.files(self.for_array_type);
+                        self.file_iterator = data_path.files();
                     }
                     None => self.data_path = None,
                 },
@@ -174,7 +222,10 @@ where
     }
 }
 
-impl<'a, T> std::fmt::Display for DataPath<'a, T> {
+impl<'a, T> std::fmt::Display for DataPath<'a, T>
+where
+    T: for<'de> Deserialize<'de>,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut display = format!(
             "{}({})",
@@ -277,9 +328,9 @@ mod tests {
     }
 
     macro_rules! assert_files_iterator_result {
-        ($data_path:expr, $for_array_type:expr, $expected:expr, $base:expr) => {
+        ($data_path:expr, $expected:expr, $base:expr) => {
             let mut vec_to_compare = $data_path
-                .files($for_array_type)
+                .files()
                 .map(|ref f| {
                     (f.strip_prefix($base).unwrap_or(f))
                         .to_str()
@@ -303,9 +354,15 @@ mod tests {
             node_type: NodeType::Dir,
             t: PhantomData,
         };
+        assert_files_iterator_result!(data_path, vec!["index.yml"], &path_buf);
 
-        assert_files_iterator_result!(data_path, false, vec!["index.yml"], &path_buf);
-        assert_files_iterator_result!(data_path, true, vec!["index.yml"], &path_buf);
+        let data_path = DataPath::<Vec<bool>> {
+            read_path: temp.path().to_path_buf(),
+            reverse_key_path: vec!["a", "b"],
+            node_type: NodeType::Dir,
+            t: PhantomData,
+        };
+        assert_files_iterator_result!(data_path, vec!["index.yml"], &path_buf);
 
         Ok(())
     }
@@ -321,9 +378,15 @@ mod tests {
             node_type: NodeType::File,
             t: PhantomData,
         };
+        assert_files_iterator_result!(data_path, vec!["a.yml"], &path_buf);
 
-        assert_files_iterator_result!(data_path, false, vec!["a.yml"], &path_buf);
-        assert_files_iterator_result!(data_path, true, vec!["a.yml"], &path_buf);
+        let data_path = DataPath::<Vec<bool>> {
+            read_path: temp.path().join("a"),
+            reverse_key_path: vec!["b"],
+            node_type: NodeType::File,
+            t: PhantomData,
+        };
+        assert_files_iterator_result!(data_path, vec!["a.yml"], &path_buf);
 
         Ok(())
     }
@@ -342,7 +405,6 @@ mod tests {
 
         assert_files_iterator_result!(
             data_path,
-            false,
             vec!["index.yml"],
             &path_buf.join("a").join("b").join("c")
         );
@@ -355,7 +417,7 @@ mod tests {
         let temp = data_path_test_files()?;
         let path_buf = temp.path().to_path_buf();
 
-        let data_path = DataPath::<bool> {
+        let data_path = DataPath::<Vec<bool>> {
             read_path: temp.path().join("a").join("b").join("c"),
             reverse_key_path: vec![],
             node_type: NodeType::Dir,
@@ -364,7 +426,6 @@ mod tests {
 
         assert_files_iterator_result!(
             data_path,
-            true,
             vec!["1.yml", "2.yml", "3.yml"],
             &path_buf.join("a").join("b").join("c")
         );
@@ -424,7 +485,7 @@ mod tests {
 
     #[test]
     fn test_data_path_iter_mono() -> Result<()> {
-        let result: Vec<Vec<Hero>> = DataPathIter::new(&DATA_PATH, vec!["heroes"], false).collect();
+        let result: Vec<Vec<Hero>> = DataPathIter::new(&DATA_PATH, vec!["heroes"]).collect();
 
         assert_eq!(
             result,
@@ -440,7 +501,7 @@ mod tests {
 
     #[test]
     fn test_data_path_iter_multi() -> Result<()> {
-        let result: Vec<Vec<Hero>> = DataPathIter::new(&DATA_PATH, vec!["heroes"], true).collect();
+        let result: Vec<Vec<Hero>> = DataPathIter::new(&DATA_PATH, vec!["heroes"]).collect();
 
         assert_eq!(
             result,
@@ -466,40 +527,5 @@ mod tests {
             ]
         );
         Ok(())
-    }
-
-    #[test]
-    fn test_if_vec_else() {
-        let s = if_vec_else!(
-            Vec<i64>,
-            {
-                let r = "is vec";
-                r
-            },
-            {
-                let r = "not vec";
-                r
-            }
-        );
-        assert_eq!(s, "is vec");
-
-        let s = if_vec_else!(
-            i64,
-            {
-                let r = "is vec";
-                r
-            },
-            {
-                let r = "not vec";
-                r
-            }
-        );
-        assert_eq!(s, "not vec")
-    }
-
-    #[test]
-    fn test_is_vec() {
-        assert_eq!(is_vec!(i64), false);
-        assert_eq!(is_vec!(Vec<i64>), true);
     }
 }
