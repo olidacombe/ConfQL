@@ -115,12 +115,12 @@ where
     }
 
     pub fn files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
-        if self.is_leaf() {
-            return (&self).leaf_files();
-        }
-        match self.node_type {
-            NodeType::Dir => self.dir_index(),
-            NodeType::File => Box::new(iter::once(self.read_path.with_extension("yml"))),
+        match self.is_leaf() {
+            true => (&self).leaf_files(),
+            false => match self.node_type {
+                NodeType::Dir => self.dir_index(),
+                NodeType::File => Box::new(iter::once(self.read_path.with_extension("yml"))),
+            },
         }
     }
 
@@ -526,6 +526,30 @@ mod tests {
                 }]
             ]
         );
+        Ok(())
+    }
+
+    #[test]
+    fn test_is_leaf() -> Result<()> {
+        let temp = data_path_test_files()?;
+
+        macro_rules! assert_leaf_result {
+            ($reverse_key_path:expr, $node_type:expr, $expected:expr) => {
+                let data_path = DataPath::<bool> {
+                    read_path: temp.path().to_path_buf(),
+                    reverse_key_path: $reverse_key_path,
+                    node_type: $node_type,
+                    t: PhantomData,
+                };
+                assert_eq!(data_path.is_leaf(), $expected);
+            };
+        }
+        assert_leaf_result!(vec!["a"], NodeType::File, false);
+        assert_leaf_result!(vec!["a"], NodeType::Dir, false);
+        assert_leaf_result!(vec![], NodeType::File, false);
+        // Only empty reverse_key_path on NodeType::Dir is a leaf
+        assert_leaf_result!(vec![], NodeType::Dir, true);
+
         Ok(())
     }
 }
