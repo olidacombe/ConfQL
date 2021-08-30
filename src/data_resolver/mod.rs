@@ -41,7 +41,7 @@ trait LeafItems<'a, T>
 where
     T: for<'de> Deserialize<'de>,
 {
-    fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a>;
+    // fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a>;
     fn leaf_object_from_value(&self, value: Value) -> Result<T>;
 }
 
@@ -49,17 +49,17 @@ impl<'a, T> LeafItems<'a, Vec<T>> for DataPath<'a, Vec<T>>
 where
     T: for<'de> Deserialize<'de>,
 {
-    fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf>> {
-        println!("Vec impl LeafItems<{}>", typename!(T));
-        match fs::read_dir(&self.read_path) {
-            Ok(reader) => Box::new(
-                reader
-                    .filter_map(|dir_entry| dir_entry.ok())
-                    .map(|dir_entry| dir_entry.path()),
-            ),
-            _ => Box::new(iter::empty::<PathBuf>()),
-        }
-    }
+    // fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf>> {
+    //     println!("Vec impl LeafItems<{}>", typename!(T));
+    //     match fs::read_dir(&self.read_path) {
+    //         Ok(reader) => Box::new(
+    //             reader
+    //                 .filter_map(|dir_entry| dir_entry.ok())
+    //                 .map(|dir_entry| dir_entry.path()),
+    //         ),
+    //         _ => Box::new(iter::empty::<PathBuf>()),
+    //     }
+    // }
 
     fn leaf_object_from_value(&self, value: Value) -> Result<Vec<T>> {
         let value = serde_yaml::from_value(value).context(format!(
@@ -75,12 +75,40 @@ impl<'a, T> LeafItems<'a, T> for &DataPath<'a, T>
 where
     T: for<'de> Deserialize<'de>,
 {
-    fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
-        println!("impl LeafItems<{}>", typename!(T));
-        self.dir_index()
-    }
+    // fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
+    //     println!("impl LeafItems<{}>", typename!(T));
+    //     self.dir_index()
+    // }
     fn leaf_object_from_value(&self, value: Value) -> Result<T> {
         self.object_from_value(value)
+    }
+}
+
+struct LeafFileReader<T> {
+    path: PathBuf,
+    t: PhantomData<T>,
+}
+trait LeafFilesMulti {
+    fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf>>;
+}
+trait LeafFilesMono {
+    fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf>>;
+}
+impl<T> LeafFilesMulti for LeafFileReader<Vec<T>> {
+    fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf>> {
+        match fs::read_dir(&self.path) {
+            Ok(reader) => Box::new(
+                reader
+                    .filter_map(|dir_entry| dir_entry.ok())
+                    .map(|dir_entry| dir_entry.path()),
+            ),
+            _ => Box::new(iter::empty::<PathBuf>()),
+        }
+    }
+}
+impl<T> LeafFilesMono for &LeafFileReader<T> {
+    fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf>> {
+        Box::new(iter::once(self.path.join("index.yml")))
     }
 }
 
@@ -113,6 +141,16 @@ where
         match self.node_type {
             NodeType::Dir => self.reverse_key_path.is_empty(),
             _ => false,
+        }
+    }
+
+    fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
+        {
+            let leaf_files_reader = LeafFileReader::<T> {
+                path: self.read_path.to_owned(),
+                t: PhantomData,
+            };
+            (&leaf_files_reader).leaf_files()
         }
     }
 
@@ -329,7 +367,10 @@ mod tests {
         Ok(())
     }
 
-    macro_rules! assert_files_iterator_result {
+    macro_rules! assert_data_path_files_iterator_result {
+        ($data_path:expr, $expected:expr) => {
+            assert_data_path_files_iterator_result!($data_path, $expected, &$data_path.read_path);
+        };
         ($data_path:expr, $expected:expr, $base:expr) => {
             let mut vec_to_compare = $data_path
                 .files()
@@ -351,20 +392,20 @@ mod tests {
         let path_buf = temp.path().to_path_buf();
 
         let data_path = DataPath::<bool> {
-            read_path: temp.path().to_path_buf(),
+            read_path: path_buf.clone(),
             reverse_key_path: vec!["a", "b"],
             node_type: NodeType::Dir,
             t: PhantomData,
         };
-        assert_files_iterator_result!(data_path, vec!["index.yml"], &path_buf);
+        assert_data_path_files_iterator_result!(data_path, vec!["index.yml"]);
 
         let data_path = DataPath::<Vec<bool>> {
-            read_path: temp.path().to_path_buf(),
+            read_path: path_buf.clone(),
             reverse_key_path: vec!["a", "b"],
             node_type: NodeType::Dir,
             t: PhantomData,
         };
-        assert_files_iterator_result!(data_path, vec!["index.yml"], &path_buf);
+        assert_data_path_files_iterator_result!(data_path, vec!["index.yml"]);
 
         Ok(())
     }
@@ -372,23 +413,23 @@ mod tests {
     #[test]
     fn data_path_files_file() -> Result<()> {
         let temp = data_path_test_files()?;
-        let path_buf = temp.path().to_path_buf();
+        let path_buf = temp.path();
 
         let data_path = DataPath::<bool> {
-            read_path: temp.path().join("a"),
+            read_path: path_buf.join("a"),
             reverse_key_path: vec!["b"],
             node_type: NodeType::File,
             t: PhantomData,
         };
-        assert_files_iterator_result!(data_path, vec!["a.yml"], &path_buf);
+        assert_data_path_files_iterator_result!(data_path, vec!["a.yml"], &path_buf);
 
         let data_path = DataPath::<Vec<bool>> {
-            read_path: temp.path().join("a"),
+            read_path: path_buf.join("a"),
             reverse_key_path: vec!["b"],
             node_type: NodeType::File,
             t: PhantomData,
         };
-        assert_files_iterator_result!(data_path, vec!["a.yml"], &path_buf);
+        assert_data_path_files_iterator_result!(data_path, vec!["a.yml"], &path_buf);
 
         Ok(())
     }
@@ -396,41 +437,34 @@ mod tests {
     #[test]
     fn data_path_files_leaf_dir_non_array_type() -> Result<()> {
         let temp = data_path_test_files()?;
-        let path_buf = temp.path().to_path_buf();
+        let path_buf = temp.path().join("a").join("b").join("c");
 
         let data_path = DataPath::<bool> {
-            read_path: temp.path().join("a").join("b").join("c"),
+            read_path: path_buf.clone(),
             reverse_key_path: vec![],
             node_type: NodeType::Dir,
             t: PhantomData,
         };
 
-        assert_files_iterator_result!(
-            data_path,
-            vec!["index.yml"],
-            &path_buf.join("a").join("b").join("c")
-        );
+        assert_data_path_files_iterator_result!(data_path, vec!["index.yml"]);
 
         Ok(())
     }
 
+    // FIXME
     #[test]
     fn data_path_files_leaf_dir_array_type() -> Result<()> {
         let temp = data_path_test_files()?;
-        let path_buf = temp.path().to_path_buf();
+        let path_buf = temp.path().join("a").join("b").join("c");
 
         let data_path = DataPath::<Vec<bool>> {
-            read_path: temp.path().join("a").join("b").join("c"),
+            read_path: path_buf.clone(),
             reverse_key_path: vec![],
             node_type: NodeType::Dir,
             t: PhantomData,
         };
 
-        assert_files_iterator_result!(
-            data_path,
-            vec!["1.yml", "2.yml", "3.yml"],
-            &path_buf.join("a").join("b").join("c")
-        );
+        assert_data_path_files_iterator_result!(data_path, vec!["1.yml", "2.yml", "3.yml"]);
 
         Ok(())
     }
@@ -552,6 +586,43 @@ mod tests {
         // Only empty reverse_key_path on NodeType::Dir is a leaf
         assert_leaf_result!(vec![], NodeType::Dir, true);
 
+        Ok(())
+    }
+
+    macro_rules! assert_leaf_files_resolver_result {
+        ($resolver:expr, $expected:expr) => {
+            let mut vec_to_compare = $resolver
+                .leaf_files()
+                .map(|ref f| {
+                    (f.strip_prefix(&$resolver.path).unwrap_or(f))
+                        .to_str()
+                        .unwrap()
+                        .to_owned()
+                })
+                .collect::<Vec<String>>();
+            vec_to_compare.sort();
+            assert_eq!(vec_to_compare, $expected);
+        };
+    }
+
+    #[test]
+    fn test_leaf_files_resolver() -> Result<()> {
+        let temp = data_path_test_files()?;
+        let base = temp.path().join("a").join("b").join("c");
+
+        let resolver = LeafFileReader::<Vec<Hero>> {
+            path: base.to_path_buf(),
+            t: PhantomData,
+        };
+
+        assert_leaf_files_resolver_result!(&resolver, vec!["1.yml", "2.yml", "3.yml"]);
+
+        let resolver = LeafFileReader::<Hero> {
+            path: base.to_path_buf(),
+            t: PhantomData,
+        };
+
+        assert_leaf_files_resolver_result!(&resolver, vec!["index.yml"]);
         Ok(())
     }
 }
