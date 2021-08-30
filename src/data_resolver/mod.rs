@@ -73,15 +73,15 @@ where
     }
 }
 
-impl<'a, T> LeafItems<'a, T> for &DataPath<'a, T>
+impl<'a, T> LeafItems<'a, T> for DataPath<'a, T>
 where
     T: for<'de> Deserialize<'de>,
 {
-    fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
+    default fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
         println!("impl LeafItems<{}>", typename!(T));
         self.dir_index()
     }
-    fn leaf_object_from_value(&self, value: Value) -> Result<T> {
+    default fn leaf_object_from_value(&self, value: Value) -> Result<T> {
         self.object_from_value(value)
     }
 }
@@ -171,30 +171,30 @@ where
         }
     }
 
-    fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
-        {
-            println!(
-                "Runtime for_collection_type(): {}",
-                (&*self).for_collection_type()
-            );
-            match self.for_collection_type() {
-                true => match fs::read_dir(&self.read_path) {
-                    Ok(reader) => Box::new(
-                        reader
-                            .filter_map(|dir_entry| dir_entry.ok())
-                            .map(|dir_entry| dir_entry.path()),
-                    ),
-                    _ => Box::new(iter::empty::<PathBuf>()),
-                },
-                false => self.dir_index(),
-            }
-            // let leaf_files_reader = LeafFileReader::<T> {
-            //     path: self.read_path.to_owned(),
-            //     t: PhantomData,
-            // };
-            // (&leaf_files_reader).leaf_files()
-        }
-    }
+    // fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
+    //     {
+    //         println!(
+    //             "Runtime for_collection_type(): {}",
+    //             (&*self).for_collection_type()
+    //         );
+    //         match self.for_collection_type() {
+    //             true => match fs::read_dir(&self.read_path) {
+    //                 Ok(reader) => Box::new(
+    //                     reader
+    //                         .filter_map(|dir_entry| dir_entry.ok())
+    //                         .map(|dir_entry| dir_entry.path()),
+    //                 ),
+    //                 _ => Box::new(iter::empty::<PathBuf>()),
+    //             },
+    //             false => self.dir_index(),
+    //         }
+    //         // let leaf_files_reader = LeafFileReader::<T> {
+    //         //     path: self.read_path.to_owned(),
+    //         //     t: PhantomData,
+    //         // };
+    //         // (&leaf_files_reader).leaf_files()
+    //     }
+    // }
 
     pub fn files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
         match self.is_leaf() {
