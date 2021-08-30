@@ -1,4 +1,3 @@
-//TODO try this https://www.reddit.com/r/learnrust/comments/l8nqwr/blanket_trait_implementation_for_types_that/
 use anyhow::{Context, Error, Result};
 use itertools::FoldWhile::{Continue, Done};
 use itertools::Itertools;
@@ -413,7 +412,6 @@ mod tests {
         Ok(())
     }
 
-    // FIXME
     #[test]
     fn data_path_files_leaf_dir_array_type() -> Result<()> {
         let temp = data_path_test_files()?;
