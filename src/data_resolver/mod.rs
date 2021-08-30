@@ -1,8 +1,10 @@
+//TODO try this https://www.reddit.com/r/learnrust/comments/l8nqwr/blanket_trait_implementation_for_types_that/
 use anyhow::{Context, Error, Result};
 use itertools::FoldWhile::{Continue, Done};
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_yaml::Value;
+use std::alloc;
 use std::fs;
 use std::iter;
 use std::iter::{IntoIterator, Iterator};
@@ -41,7 +43,7 @@ trait LeafItems<'a, T>
 where
     T: for<'de> Deserialize<'de>,
 {
-    // fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a>;
+    fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a>;
     fn leaf_object_from_value(&self, value: Value) -> Result<T>;
 }
 
@@ -49,17 +51,17 @@ impl<'a, T> LeafItems<'a, Vec<T>> for DataPath<'a, Vec<T>>
 where
     T: for<'de> Deserialize<'de>,
 {
-    // fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf>> {
-    //     println!("Vec impl LeafItems<{}>", typename!(T));
-    //     match fs::read_dir(&self.read_path) {
-    //         Ok(reader) => Box::new(
-    //             reader
-    //                 .filter_map(|dir_entry| dir_entry.ok())
-    //                 .map(|dir_entry| dir_entry.path()),
-    //         ),
-    //         _ => Box::new(iter::empty::<PathBuf>()),
-    //     }
-    // }
+    fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
+        println!("Vec impl LeafItems<{}>", typename!(T));
+        match fs::read_dir(&self.read_path) {
+            Ok(reader) => Box::new(
+                reader
+                    .filter_map(|dir_entry| dir_entry.ok())
+                    .map(|dir_entry| dir_entry.path()),
+            ),
+            _ => Box::new(iter::empty::<PathBuf>()),
+        }
+    }
 
     fn leaf_object_from_value(&self, value: Value) -> Result<Vec<T>> {
         let value = serde_yaml::from_value(value).context(format!(
@@ -75,12 +77,34 @@ impl<'a, T> LeafItems<'a, T> for &DataPath<'a, T>
 where
     T: for<'de> Deserialize<'de>,
 {
-    // fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
-    //     println!("impl LeafItems<{}>", typename!(T));
-    //     self.dir_index()
-    // }
+    fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
+        println!("impl LeafItems<{}>", typename!(T));
+        self.dir_index()
+    }
     fn leaf_object_from_value(&self, value: Value) -> Result<T> {
         self.object_from_value(value)
+    }
+}
+
+trait ForCollectionType {
+    fn for_collection_type(&self) -> bool;
+}
+
+impl<T> ForCollectionType for DataPath<'_, Vec<T>>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    fn for_collection_type(&self) -> bool {
+        true
+    }
+}
+
+impl<T> ForCollectionType for &DataPath<'_, T>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    fn for_collection_type(&self) -> bool {
+        false
     }
 }
 
@@ -94,7 +118,10 @@ trait LeafFilesMulti {
 trait LeafFilesMono {
     fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf>>;
 }
-impl<T> LeafFilesMulti for LeafFileReader<Vec<T>> {
+impl<T, U> LeafFilesMulti for LeafFileReader<T>
+where
+    T: std::ops::Deref<Target = [U]>,
+{
     fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf>> {
         match fs::read_dir(&self.path) {
             Ok(reader) => Box::new(
@@ -146,11 +173,26 @@ where
 
     fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
         {
-            let leaf_files_reader = LeafFileReader::<T> {
-                path: self.read_path.to_owned(),
-                t: PhantomData,
-            };
-            (&leaf_files_reader).leaf_files()
+            println!(
+                "Runtime for_collection_type(): {}",
+                (&*self).for_collection_type()
+            );
+            match self.for_collection_type() {
+                true => match fs::read_dir(&self.read_path) {
+                    Ok(reader) => Box::new(
+                        reader
+                            .filter_map(|dir_entry| dir_entry.ok())
+                            .map(|dir_entry| dir_entry.path()),
+                    ),
+                    _ => Box::new(iter::empty::<PathBuf>()),
+                },
+                false => self.dir_index(),
+            }
+            // let leaf_files_reader = LeafFileReader::<T> {
+            //     path: self.read_path.to_owned(),
+            //     t: PhantomData,
+            // };
+            // (&leaf_files_reader).leaf_files()
         }
     }
 
@@ -464,6 +506,8 @@ mod tests {
             t: PhantomData,
         };
 
+        assert!(data_path.for_collection_type());
+
         assert_data_path_files_iterator_result!(data_path, vec!["1.yml", "2.yml", "3.yml"]);
 
         Ok(())
@@ -623,6 +667,32 @@ mod tests {
         };
 
         assert_leaf_files_resolver_result!(&resolver, vec!["index.yml"]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_for_collection_type() -> Result<()> {
+        let temp = data_path_test_files()?;
+        let read_path = temp.path();
+
+        let data_path = DataPath::<Vec<bool>> {
+            read_path: read_path.to_path_buf(),
+            reverse_key_path: vec![],
+            node_type: NodeType::Dir,
+            t: PhantomData,
+        };
+
+        assert!((&data_path).for_collection_type());
+
+        let data_path = DataPath::<bool> {
+            read_path: read_path.to_path_buf(),
+            reverse_key_path: vec![],
+            node_type: NodeType::Dir,
+            t: PhantomData,
+        };
+
+        assert!(!(&data_path).for_collection_type());
+
         Ok(())
     }
 }
