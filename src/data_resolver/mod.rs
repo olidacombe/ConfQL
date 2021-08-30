@@ -4,10 +4,10 @@ use itertools::FoldWhile::{Continue, Done};
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_yaml::Value;
-use std::alloc;
+
 use std::fs;
 use std::iter;
-use std::iter::{IntoIterator, Iterator};
+use std::iter::Iterator;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
@@ -264,7 +264,7 @@ mod tests {
 
     fn datatree(trunk: &[&str]) -> Result<TempDir> {
         let temp = TempDir::new(env!("CARGO_PKG_NAME"))?;
-        let mut path_buf = temp.path().to_path_buf();
+        let _path_buf = temp.path().to_path_buf();
         let path_buf = trunk
             .iter()
             .fold(temp.path().to_path_buf(), |buf, dir| buf.join(dir));
@@ -485,30 +485,27 @@ mod tests {
     fn test_data_path_iter_multi() -> Result<()> {
         let mut result: Vec<Vec<Hero>> = DataPathIter::new(&DATA_PATH, vec!["heroes"]).collect();
         result.sort();
-            let expected = vec![
-                vec![Hero {
-                    // index.yml
-                    name: "Andy Anderson".to_owned(),
-                    id: 1,
-                    powers: vec!["eating".to_owned(), "sleeping".to_owned()]
-                }],
-                vec![Hero {
-                    // heroes/charles.yml
-                    name: "Charles Charleston".to_owned(),
-                    id: 3,
-                    powers: vec!["moaning".to_owned(), "cheating".to_owned()]
-                }],
-                vec![Hero {
-                    // heroes/kevin.yml
-                    name: "Kevin Kevinson".to_owned(),
-                    id: 2,
-                    powers: vec!["hunting".to_owned(), "fighting".to_owned()]
-                }],
-            ];
-        assert_eq!(
-            result,
-            expected
-        );
+        let expected = vec![
+            vec![Hero {
+                // index.yml
+                name: "Andy Anderson".to_owned(),
+                id: 1,
+                powers: vec!["eating".to_owned(), "sleeping".to_owned()],
+            }],
+            vec![Hero {
+                // heroes/charles.yml
+                name: "Charles Charleston".to_owned(),
+                id: 3,
+                powers: vec!["moaning".to_owned(), "cheating".to_owned()],
+            }],
+            vec![Hero {
+                // heroes/kevin.yml
+                name: "Kevin Kevinson".to_owned(),
+                id: 2,
+                powers: vec!["hunting".to_owned(), "fighting".to_owned()],
+            }],
+        ];
+        assert_eq!(result, expected);
         Ok(())
     }
 

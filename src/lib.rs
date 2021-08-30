@@ -1,5 +1,4 @@
 #![feature(specialization)]
-#[macro_use]
 extern crate lazy_static;
 
 mod data_resolver;
@@ -50,8 +49,7 @@ macro_rules! yaml {
 mod tests {
     extern crate fixtures;
 
-    use super::*;
-    use async_graphql::{value, EmptyMutation, EmptySubscription, Object, Schema, SimpleObject};
+    use async_graphql::{value, EmptyMutation, EmptySubscription, Object, Schema};
     use fixtures::models::Hero;
 
     struct Query;
@@ -72,7 +70,7 @@ mod tests {
         }
 
         async fn heroes(&self) -> Vec<Hero> {
-            let mut heroes: Vec<Hero> = vec![];
+            let heroes: Vec<Hero> = vec![];
             //for index_filename in SETTINGS.index_filenames.iter() {
             //match get_object_from_path::<Vec<Hero>>(
             //&SETTINGS.root.join(index_filename),
