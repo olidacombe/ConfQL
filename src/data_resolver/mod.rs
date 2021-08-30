@@ -52,7 +52,6 @@ where
     T: for<'de> Deserialize<'de>,
 {
     fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
-        println!("Vec impl LeafItems<{}>", typename!(T));
         match fs::read_dir(&self.read_path) {
             Ok(reader) => Box::new(
                 reader
@@ -78,7 +77,6 @@ where
     T: for<'de> Deserialize<'de>,
 {
     default fn leaf_files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
-        println!("impl LeafItems<{}>", typename!(T));
         self.dir_index()
     }
     default fn leaf_object_from_value(&self, value: Value) -> Result<T> {
@@ -484,28 +482,10 @@ mod tests {
     }
 
     #[test]
-    fn test_data_path_iter_mono() -> Result<()> {
-        let result: Vec<Vec<Hero>> = DataPathIter::new(&DATA_PATH, vec!["heroes"]).collect();
-
-        assert_eq!(
-            result,
-            vec![vec![Hero {
-                // index.yml
-                name: "Andy Anderson".to_owned(),
-                id: 1,
-                powers: vec!["eating".to_owned(), "sleeping".to_owned()]
-            }]]
-        );
-        Ok(())
-    }
-
-    #[test]
     fn test_data_path_iter_multi() -> Result<()> {
-        let result: Vec<Vec<Hero>> = DataPathIter::new(&DATA_PATH, vec!["heroes"]).collect();
-
-        assert_eq!(
-            result,
-            vec![
+        let mut result: Vec<Vec<Hero>> = DataPathIter::new(&DATA_PATH, vec!["heroes"]).collect();
+        result.sort();
+            let expected = vec![
                 vec![Hero {
                     // index.yml
                     name: "Andy Anderson".to_owned(),
@@ -523,8 +503,11 @@ mod tests {
                     name: "Kevin Kevinson".to_owned(),
                     id: 2,
                     powers: vec!["hunting".to_owned(), "fighting".to_owned()]
-                }]
-            ]
+                }],
+            ];
+        assert_eq!(
+            result,
+            expected
         );
         Ok(())
     }
