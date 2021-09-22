@@ -1,7 +1,0 @@
----
-heroes:
-  - name: Andy Anderson
-    id: 1
-    powers:
-      - eating
-      - sleeping
