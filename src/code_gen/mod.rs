@@ -23,9 +23,8 @@ impl CodeGen {
 	}
 	pub fn generate_code(self) -> Result<TokenStream, CodeGenError> {
 		use SchemaLocation::Literal;
-		let schema = match self.source {
-			Literal(schema) => schema,
-		};
+		// TODO a match when we have FilePath variant
+		let Literal(schema) = self.source;
 		let parsed = SchemaParse::<String>::from(parse_schema::<String>(&schema)?);
 		Ok(parsed.into_token_stream())
 	}
@@ -51,9 +50,10 @@ impl<'a, T: query::Text<'a>> From<schema::Document<'a, T>> for SchemaParse<'a, T
 		let mut types = Vec::<Type<'a, T>>::new();
 
 		use schema::Definition;
-		doc.definitions.into_iter().for_each(|def| match def {
-			Definition::TypeDefinition(def) => types.push(Type::from(def)),
-			_ => {}
+		doc.definitions.into_iter().for_each(|def| {
+			if let Definition::TypeDefinition(def) = def {
+				types.push(Type::from(def))
+			}
 		});
 
 		Self { types }
