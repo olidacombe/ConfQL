@@ -2,7 +2,7 @@ use confql::graphql_schema;
 
 graphql_schema! {
     type Query {
-    name: String!
+        name: String!
     }
 
     schema {

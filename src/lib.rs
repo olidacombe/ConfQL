@@ -1,16 +1,17 @@
 extern crate proc_macro;
 
-use quote::quote;
+mod code_gen;
+
+use code_gen::CodeGen;
 
 #[proc_macro]
 pub fn graphql_schema(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let _schema = input.to_string();
+    let schema = input.to_string();
 
-    //     let code_gen = CodeGen::build_from_schema_literal(schema).finish();
+    let code_gen = CodeGen::from_schema_literal(schema);
 
-    //     match code_gen.generate_code() {
-    //         Ok(tokens) => tokens.into(),
-    //         Err(errors) => panic!("{}", errors),
-    //     }
-    proc_macro::TokenStream::from(quote! {})
+    match code_gen.generate_code() {
+        Ok(tokens) => tokens.into(),
+        Err(errors) => panic!("{}", errors),
+    }
 }
