@@ -64,7 +64,45 @@ impl<'a, T: query::Text<'a>> From<schema::Document<'a, T>> for SchemaParse<'a, T
     }
 }
 
-struct FieldType<'a, T: query::Text<'a>>(query::Type<'a, T>);
+enum FieldType<'a, T: query::Text<'a>> {
+    Nullable(query::Type<'a, T>),
+    NonNullable(query::Type<'a, T>),
+}
+
+impl<'a, T: query::Text<'a>> From<schema::Type<'a, T>> for FieldType<'a, T> {
+    fn from(ty: schema::Type<'a, T>) -> Self {
+        use query::Type::NonNullType;
+        match ty {
+            NonNullType(t) => Self::NonNullable(*t),
+            _ => Self::Nullable(ty),
+        }
+    }
+}
+
+impl<'a, T> FieldType<'a, T>
+where
+    T: query::Text<'a>,
+    T: Clone,
+{
+    fn inner_tokens(&self) -> TokenStream {
+        use query::Type::{ListType, NamedType, NonNullType};
+        let ty = match self {
+            Self::Nullable(ty) => ty,
+            Self::NonNullable(ty) => ty,
+        };
+        match ty {
+            NamedType(val) => {
+                let val = format_ident!("{}", val.as_ref());
+                quote! {#val}
+            }
+            ListType(t) => {
+                let t = Self::from(*t.clone());
+                quote! { Vec<#t> }
+            }
+            NonNullType(_) => unreachable!(),
+        }
+    }
+}
 
 struct Field<'doc, T: query::Text<'doc>> {
     name: T::Value,
@@ -78,7 +116,7 @@ impl<'a, T: query::Text<'a>> From<schema::Field<'a, T>> for Field<'a, T> {
                 name, field_type, ..
             } => Self {
                 name,
-                field_type: FieldType(field_type),
+                field_type: FieldType::from(field_type),
             },
         }
     }
@@ -105,20 +143,10 @@ where
     T: Clone,
 {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        use query::Type::{ListType, NamedType, NonNullType};
-        tokens.extend(match &self.0 {
-            NamedType(val) => {
-                let val = format_ident!("{}", val.as_ref());
-                quote! {#val}
-            }
-            ListType(t) => {
-                let t = FieldType(*t.clone());
-                quote! { Vec<#t> }
-            }
-            NonNullType(t) => {
-                let t = FieldType(*t.clone());
-                quote! { Option<#t> }
-            }
+        let inner_type = self.inner_tokens();
+        tokens.extend(match self {
+            Self::Nullable(t) => quote! { Option<#inner_type>},
+            Self::NonNullable(t) => quote! { #inner_type },
         });
     }
 }
