@@ -111,13 +111,12 @@ struct Field<'doc, T: query::Text<'doc>> {
 
 impl<'a, T: query::Text<'a>> From<schema::Field<'a, T>> for Field<'a, T> {
     fn from(field: schema::Field<'a, T>) -> Self {
-        match field {
-            schema::Field {
-                name, field_type, ..
-            } => Self {
-                name,
-                field_type: FieldType::from(field_type),
-            },
+        let schema::Field {
+            name, field_type, ..
+        } = field;
+        Self {
+            name,
+            field_type: FieldType::from(field_type),
         }
     }
 }
@@ -129,7 +128,7 @@ struct Type<'doc, T: query::Text<'doc>> {
 
 impl<'doc, T: query::Text<'doc>> Type<'doc, T> {
     fn from_object_definition(def: schema::ObjectType<'doc, T>) -> Self {
-        let fields = def.fields.into_iter().map(|f| Field::from(f)).collect();
+        let fields = def.fields.into_iter().map(Field::from).collect();
         Self {
             name: def.name,
             fields,
@@ -145,8 +144,8 @@ where
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let inner_type = self.inner_tokens();
         tokens.extend(match self {
-            Self::Nullable(t) => quote! { Option<#inner_type>},
-            Self::NonNullable(t) => quote! { #inner_type },
+            Self::Nullable(_) => quote! { Option<#inner_type>},
+            Self::NonNullable(_) => quote! { #inner_type },
         });
     }
 }
@@ -157,12 +156,9 @@ where
     T: Clone,
 {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        tokens.extend(match self {
-            Field { name, field_type } => {
-                let name = format_ident!("{}", name.as_ref());
-                quote! { #name: #field_type }
-            }
-        });
+        let Field { name, field_type } = self;
+        let name = format_ident!("{}", name.as_ref());
+        tokens.extend(quote! { #name: #field_type });
     }
 }
 
