@@ -6,7 +6,11 @@ mod fields;
 
 use fields::Field;
 
-pub struct Type<'doc, T: query::Text<'doc>> {
+pub enum Type<'a, T: query::Text<'a>> {
+    Object(Object<'a, T>),
+}
+
+pub struct Object<'doc, T: query::Text<'doc>> {
     name: T::Value,
     fields: Vec<Field<'doc, T>>,
 }
@@ -14,10 +18,10 @@ pub struct Type<'doc, T: query::Text<'doc>> {
 impl<'doc, T: query::Text<'doc>> Type<'doc, T> {
     fn from_object_definition(def: schema::ObjectType<'doc, T>) -> Self {
         let fields = def.fields.into_iter().map(Field::from).collect();
-        Self {
+        Self::Object(Object {
             name: def.name,
             fields,
-        }
+        })
     }
 }
 
@@ -37,11 +41,16 @@ where
     T: Clone,
 {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let name = format_ident!("{}", self.name.as_ref());
-        let fields = self.fields.iter();
-        tokens.extend(quote! {
-            struct #name {
-            #(#fields),*
+        tokens.extend(match self {
+            Self::Object(obj) => {
+                let name = format_ident!("{}", obj.name.as_ref());
+                let fields = obj.fields.iter();
+                quote! {
+                    #[derive(GraphQLObject)]
+                    struct #name {
+                    #(#fields),*
+                    }
+                }
             }
         });
     }

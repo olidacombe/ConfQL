@@ -47,6 +47,7 @@ where
     T: Clone,
 {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.extend(quote! {use juniper::GraphQLObject;});
         let types = self.types.iter();
         tokens.extend(quote! {#(#types)*});
     }
