@@ -26,7 +26,7 @@ impl DataResolver {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use anyhow::Result;
+	use anyhow::{Error, Result};
 	use indoc::indoc;
 	use tempdir::TempDir;
 	use touch::file;
@@ -34,9 +34,15 @@ mod tests {
 	struct Mocks(TempDir);
 
 	impl Mocks {
-		fn file(&self, path: &str, content: &str) -> &Self {
-			file::write(self.slash(path).to_str().unwrap(), content, true);
-			self
+		fn file(&self, path: &str, content: &str) -> Result<&Self> {
+			file::write(
+				self.slash(path)
+					.to_str()
+					.ok_or(Error::msg("mock path build failure"))?,
+				content,
+				true,
+			)?;
+			Ok(self)
 		}
 
 		fn new() -> Self {
@@ -65,7 +71,7 @@ mod tests {
 				---
 				version: 3
 			"},
-		);
+		)?;
 		let i: u32 = mocks.resolver().get_non_nullable(&["version"])?;
 		assert_eq!(i, 3);
 		Ok(())
