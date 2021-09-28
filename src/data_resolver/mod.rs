@@ -1,9 +1,9 @@
-use itertools::Itertools;
 use serde::Deserialize;
-use serde_yaml::Value;
-use std::convert::TryFrom;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use thiserror::Error;
+
+mod values;
+use values::{get_sub_value_at_address, value_from_file};
 
 #[derive(Error, Debug)]
 pub enum DataResolverError {
@@ -15,26 +15,6 @@ pub enum DataResolverError {
 	YamlError(#[from] serde_yaml::Error),
 	#[error(transparent)]
 	IOError(#[from] std::io::Error),
-}
-
-fn get_sub_value_at_address<'a>(
-	value: &'a Value,
-	address: &[&str],
-) -> Result<&'a Value, DataResolverError> {
-	use itertools::FoldWhile::{Continue, Done};
-	return address
-		.iter()
-		.fold_while(Ok(value), |acc, i| match acc.unwrap().get(i) {
-			Some(v) => Continue(Ok(v)),
-			_ => Done(Err(DataResolverError::KeyNotFound(i.to_string()))),
-		})
-		.into_inner();
-}
-
-fn value_from_file(path: &PathBuf) -> Result<Value, DataResolverError> {
-	let file = std::fs::File::open(&path)?;
-	let value = serde_yaml::from_reader::<_, Value>(file)?;
-	Ok(value)
 }
 
 pub struct DataResolver<'a> {
@@ -91,6 +71,7 @@ mod tests {
 	use super::*;
 	use anyhow::{Error, Result};
 	use indoc::indoc;
+	use std::path::PathBuf;
 	use tempdir::TempDir;
 	use touch::file;
 
