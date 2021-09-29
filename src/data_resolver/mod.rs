@@ -68,8 +68,6 @@ impl<'a> From<&'a Path> for DataResolver<'a> {
 
 #[cfg(test)]
 mod tests {
-	extern crate test_files;
-
 	use super::*;
 	use anyhow::Result;
 	use indoc::indoc;
