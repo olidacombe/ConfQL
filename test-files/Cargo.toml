@@ -1,0 +1,13 @@
+[package]
+name = "test-files"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+tempdir = "0.3.7"
+thiserror = "1.0.29"
+touch = "0.0.1"
+
+[dev-dependencies]
+anyhow = "1.0.44"
+indoc = "1.0.3"
