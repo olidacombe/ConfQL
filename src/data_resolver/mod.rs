@@ -68,47 +68,26 @@ impl<'a> From<&'a Path> for DataResolver<'a> {
 
 #[cfg(test)]
 mod tests {
+	extern crate test_files;
+
 	use super::*;
-	use anyhow::{Error, Result};
+	use anyhow::Result;
 	use indoc::indoc;
-	use std::path::PathBuf;
-	use tempdir::TempDir;
-	use touch::file;
+	use test_files::TestFiles;
 
-	struct Mocks(TempDir);
+	trait GetResolver {
+		fn resolver(&self) -> DataResolver;
+	}
 
-	impl Mocks {
-		fn file(&self, path: &str, content: &str) -> Result<&Self> {
-			file::write(
-				self.slash(path)
-					.to_str()
-					.ok_or(Error::msg("mock path build failure"))?,
-				content,
-				true,
-			)?;
-			Ok(self)
-		}
-
-		fn new() -> Self {
-			Self(TempDir::new(env!("CARGO_PKG_NAME")).unwrap())
-		}
-
-		fn path(&self) -> &Path {
-			self.0.path()
-		}
-
+	impl GetResolver for TestFiles {
 		fn resolver(&self) -> DataResolver {
-			DataResolver::from(self.0.path())
-		}
-
-		fn slash(&self, relative_path: &str) -> PathBuf {
-			self.path().join(relative_path)
+			DataResolver::from(self.path())
 		}
 	}
 
 	#[test]
 	fn resolves_non_nullable_int_at_root() -> Result<()> {
-		let mocks = Mocks::new();
+		let mocks = TestFiles::new().unwrap();
 		mocks.file(
 			"index.yml",
 			indoc! {"
