@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::path::Path;
 use thiserror::Error;
 
+mod data_path;
 mod values;
 use values::{get_sub_value_at_address, value_from_file};
 
