@@ -51,49 +51,10 @@ where
 					}
 				}
 			}
-			// match self.file_iterator.next() {
-			// 	Some(path) => {
-			// 		if let Ok(object) = self.get_object(&path) {
-			// 			return Some(object);
-			// 		}
-			// 	}
-			// 	None => match data_path.next() {
-			// 		Some(data_path) => {
-			// 			self.file_iterator = data_path.files();
-			// 		}
-			// 		None => self.data_path = None,
-			// 	},
-			// }
 		}
 		None
 	}
 }
-
-// impl<'a, T> Iterator for DataPathIter<'a, T>
-// where
-// 	T: for<'de> Deserialize<'de>,
-// {
-// 	type Item = T;
-
-// 	fn next(&mut self) -> Option<Self::Item> {
-// 		while let Some(ref mut data_path) = self.data_path {
-// 			match self.file_iterator.next() {
-// 				Some(path) => {
-// 					if let Ok(object) = self.get_object(&path) {
-// 						return Some(object);
-// 					}
-// 				}
-// 				None => match data_path.next() {
-// 					Some(data_path) => {
-// 						self.file_iterator = data_path.files();
-// 					}
-// 					None => self.data_path = None,
-// 				},
-// 			}
-// 		}
-// 		None
-// 	}
-// }
 
 pub struct DataPath<'a> {
 	pub path: PathBuf,

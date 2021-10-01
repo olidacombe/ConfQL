@@ -175,4 +175,50 @@ mod tests {
         }
         Ok(())
     }
+
+    #[test]
+    fn resolves_non_nullable_list_int_at_root_files() -> Result<()> {
+        let mocks = TestFiles::new().unwrap();
+        mocks
+            .file(
+                "a.yml",
+                indoc! {"
+                ---
+                1
+            "},
+            )?
+            .file(
+                "b.yml",
+                indoc! {"
+                ---
+                2
+            "},
+            )?;
+        let v: Vec<u32> = mocks.resolver().get_non_nullable(&[])?;
+        assert_eq!(v, vec![1, 2]);
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_non_nullable_list_at_bottom_files() -> Result<()> {
+        let mocks = TestFiles::new().unwrap();
+        mocks
+            .file(
+                "a/b.yml",
+                indoc! {"
+                ---
+                1
+            "},
+            )?
+            .file(
+                "a/c.yml",
+                indoc! {"
+                ---
+                2
+            "},
+            )?;
+        let v: Vec<u32> = mocks.resolver().get_non_nullable(&[])?;
+        assert_eq!(v, vec![1, 2]);
+        Ok(())
+    }
 }
