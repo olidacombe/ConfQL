@@ -3,6 +3,7 @@ use std::path::Path;
 use thiserror::Error;
 
 mod data_path;
+use data_path::DataPath;
 mod values;
 use values::{get_sub_value_at_address, value_from_file};
 
@@ -43,11 +44,11 @@ impl<'a> DataResolver<'a> {
     where
         T: for<'de> Deserialize<'de>,
     {
-        let path = self.root.join("index.yml");
-        let value = value_from_file(&path)?;
-        let value = get_sub_value_at_address(&value, address)?;
-        let value = serde_yaml::from_value(value.to_owned())?;
-        Ok(value)
+        let data_path = DataPath {
+            path: self.root.to_path_buf(),
+            address: address,
+        };
+        Ok(data_path.iter().next())
     }
 
     pub fn get_nullable_list<T>(
