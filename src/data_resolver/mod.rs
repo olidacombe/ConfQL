@@ -13,6 +13,8 @@ pub enum DataResolverError {
     KeyNotFound(String),
     #[error("Data not found")]
     DataNotFound,
+    #[error("Attempted to access data from empty DataPath")]
+    EmptyDataPathAccess,
     #[error(transparent)]
     YamlError(#[from] serde_yaml::Error),
     #[error(transparent)]
@@ -92,10 +94,10 @@ mod tests {
             "index.yml",
             indoc! {"
                 ---
-                version: 3
+                3
             "},
         )?;
-        let i: u32 = mocks.resolver().get_non_nullable(&["version"])?;
+        let i: u32 = mocks.resolver().get_non_nullable(&[])?;
         assert_eq!(i, 3);
         Ok(())
     }
@@ -177,6 +179,41 @@ mod tests {
     }
 
     #[test]
+    fn resolves_non_nullable_list_int_at_root() -> Result<()> {
+        let mocks = TestFiles::new().unwrap();
+        mocks.file(
+            "index.yml",
+            indoc! {"
+                ---
+                - 1
+                - 2
+                - 3
+            "},
+        )?;
+        let v: Vec<u32> = mocks.resolver().get_non_nullable(&[])?;
+        assert_eq!(v, vec![1, 2, 3]);
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_non_nullable_list_int_at_index() -> Result<()> {
+        let mocks = TestFiles::new().unwrap();
+        mocks.file(
+            "index.yml",
+            indoc! {"
+                ---
+                a:
+                - 4
+                - 5
+                - 6
+            "},
+        )?;
+        let v: Vec<u32> = mocks.resolver().get_non_nullable(&["a"])?;
+        assert_eq!(v, vec![4, 5, 6]);
+        Ok(())
+    }
+
+    #[test]
     fn resolves_non_nullable_list_int_at_root_files() -> Result<()> {
         let mocks = TestFiles::new().unwrap();
         mocks
@@ -194,7 +231,8 @@ mod tests {
                 2
             "},
             )?;
-        let v: Vec<u32> = mocks.resolver().get_non_nullable(&[])?;
+        let mut v: Vec<u32> = mocks.resolver().get_non_nullable(&[])?;
+        v.sort();
         assert_eq!(v, vec![1, 2]);
         Ok(())
     }

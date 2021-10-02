@@ -7,6 +7,37 @@ use std::path::PathBuf;
 use super::values::{get_sub_value_at_address, value_from_file};
 use super::DataResolverError;
 
+trait LeafObject<'a, T>
+where
+	T: for<'de> Deserialize<'de>,
+{
+	fn leaf_object(&self) -> Result<T, DataResolverError>;
+}
+
+impl<'a, T> LeafObject<'a, Vec<T>> for DataPathIter<'a, Vec<T>>
+where
+	T: for<'de> Deserialize<'de>,
+{
+	fn leaf_object(&self) -> Result<Vec<T>, DataResolverError> {
+		self.data_path
+			.as_ref()
+			.ok_or(DataResolverError::EmptyDataPathAccess)?
+			.get_dir_objects()
+	}
+}
+
+impl<'a, T> LeafObject<'a, T> for DataPathIter<'a, T>
+where
+	T: for<'de> Deserialize<'de>,
+{
+	default fn leaf_object(&self) -> Result<T, DataResolverError> {
+		self.data_path
+			.as_ref()
+			.ok_or(DataResolverError::EmptyDataPathAccess)?
+			.get_dir_object()
+	}
+}
+
 enum DataPathIterState {
 	Dir,
 	File,
@@ -30,24 +61,24 @@ where
 			match self.state {
 				File => {
 					self.state = Dir;
-					// if data_path.is_complete() {
-					// 	if let Some(val) = self.get_leaf_value() {
-					// 	} else {
-					// 		self.data_path = None;
-					// 	}
-					// } else {
 					if let Ok(val) = data_path.get_file_object() {
 						return Some(val);
 					}
-					// }
 				}
 				Dir => {
 					self.state = File;
-					if let Ok(val) = data_path.get_dir_object() {
-						return Some(val);
-					}
-					if let None = data_path.next() {
+					if data_path.is_complete() {
+						let leaf = self.leaf_object();
 						self.data_path = None;
+						if let Ok(val) = leaf {
+							return Some(val);
+						}
+					} else {
+						let val = data_path.get_dir_object();
+						data_path.next();
+						if let Ok(val) = val {
+							return Some(val);
+						}
 					}
 				}
 			}
