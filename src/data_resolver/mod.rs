@@ -255,7 +255,8 @@ mod tests {
                 2
             "},
             )?;
-        let v: Vec<u32> = mocks.resolver().get_non_nullable(&[])?;
+        let mut v: Vec<u32> = mocks.resolver().get_non_nullable(&["a"])?;
+        v.sort();
         assert_eq!(v, vec![1, 2]);
         Ok(())
     }
