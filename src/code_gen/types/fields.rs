@@ -84,3 +84,24 @@ where
         });
     }
 }
+
+/// TODO
+/// generate code for a ResolveValue trait to use
+/// so we can print out (pseudo)
+/// 
+/// impl ResolveValue for MyType {
+///     resolve_value(data_path: DataPath) -> Value {
+///         if !data_path.done() {
+///             v = data_path.value();
+///             // or = data_path.values(); // similar but on empty address,
+///                                     // spread Dir
+///             data_path.next();
+///             v.merge(self.resolve_value(data_path));
+///         } else {
+///             // below gets generated from fields
+///             v.merge_at(resolve_value(data_path + "single_valued_field_1"), "single_valued_field_1");
+///             v.merge_at(resolve_value(data_path + "list_field_1"), "list_field_1");
+///             // ... all fields
+///         }
+///     }
+/// }
