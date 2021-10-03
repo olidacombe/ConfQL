@@ -10,6 +10,11 @@ use values::{get_sub_value_at_address, value_from_file};
 
 #[derive(Error, Debug)]
 pub enum DataResolverError {
+    #[error("Incompatible merge `{dst:?}` <- `{src:?}`")]
+    IncompatibleYamlMerge {
+        src: serde_yaml::Value,
+        dst: serde_yaml::Value,
+    },
     #[error("Key `{0}` not found")]
     KeyNotFound(String),
     #[error("Data not found")]

@@ -69,8 +69,78 @@ impl<'a> DataPath<'a> {
 }
 
 trait Merge {
-	fn merge(&mut self, mergee: Self);
-	fn merge_at(&mut self, key: &str, mergee: Self);
+	fn merge(&mut self, mergee: Self) -> Result<&mut Self, DataResolverError>;
+	fn merge_at(&mut self, key: &str, mergee: Self) -> Result<&mut Self, DataResolverError>;
+}
+
+impl Merge for serde_yaml::Value {
+	fn merge(&mut self, mergee: Self) -> Result<&mut Self, DataResolverError> {
+		use serde_yaml::Value::{Bool, Mapping, Null, Number, Sequence, String};
+		use std::mem::replace;
+		use DataResolverError::IncompatibleYamlMerge;
+		match self {
+			Null => {
+				replace(self, mergee);
+			}
+			Bool(_) => {
+				if !mergee.is_bool() {
+					return Err(IncompatibleYamlMerge {
+						dst: *self,
+						src: mergee,
+					});
+				}
+				replace(self, mergee);
+			}
+			Number(_) => {
+				if !mergee.is_number() {
+					return Err(IncompatibleYamlMerge {
+						dst: *self,
+						src: mergee,
+					});
+				}
+				replace(self, mergee);
+			}
+			String(_) => {
+				if !mergee.is_string() {
+					return Err(IncompatibleYamlMerge {
+						dst: *self,
+						src: mergee,
+					});
+				}
+				replace(self, mergee);
+			}
+			Sequence(list) => {
+				if let Sequence(ref mut appendee) = mergee {
+					list.append(appendee);
+				} else {
+					return Err(IncompatibleYamlMerge {
+						dst: *self,
+						src: mergee,
+					});
+				}
+			}
+			Mapping(mapping) => {
+				if let Mapping(superimposee) = mergee {
+					for (key, src) in superimposee {
+						if let Some(dst) = mapping.get_mut(&key) {
+							dst.merge(src);
+						} else {
+							mapping.insert(key, src);
+						}
+					}
+				} else {
+					return Err(IncompatibleYamlMerge {
+						dst: *self,
+						src: mergee,
+					});
+				}
+			}
+		};
+		Ok(self)
+	}
+	fn merge_at(&mut self, key: &str, mergee: Self) -> Result<&mut Self, DataResolverError> {
+		Ok(self)
+	}
 }
 
 trait ResolveValue {
