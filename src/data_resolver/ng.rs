@@ -1,7 +1,6 @@
 use serde::Deserialize;
 use std::fs;
 use std::iter;
-use std::marker::PhantomData;
 use std::path::PathBuf;
 
 use super::values::{get_sub_value_at_address, value_from_file};
@@ -45,6 +44,13 @@ impl<'a> DataPath<'a> {
 					.map(|dir_entry| dir_entry.path()),
 			),
 			_ => Box::new(iter::empty::<PathBuf>()),
+		}
+	}
+	pub fn join(&self, tail: &'a str) -> Self {
+		Self {
+			level: Level::File,
+			path: self.path.join(tail),
+			address: self.address,
 		}
 	}
 	pub fn value(&self) -> serde_yaml::Value {
@@ -171,34 +177,11 @@ impl Merge for serde_yaml::Value {
 }
 
 trait ResolveValue {
-	fn resolve_value(data_path: DataPath) -> serde_yaml::Value;
-	fn resolve_values(data_path: DataPath) -> serde_yaml::Value;
-}
-
-struct MyObj {
-	id: u32,
-	name: String,
-}
-
-struct MyOtherObj {
-	id: u32,
-	alias: String,
-}
-
-struct Query {
-	my_obj: MyObj,
-	my_list: Vec<MyOtherObj>,
-}
-
-impl ResolveValue for Query {
+	fn merge_properties(value: &mut serde_yaml::Value, data_path: &DataPath) {}
 	fn resolve_value(data_path: DataPath) -> serde_yaml::Value {
 		let mut value = serde_yaml::Value::Null;
 		if data_path.done() {
-			value.merge_at("my_obj", MyObj.resolve_value(data_path.join("my_obj")));
-			value.merge_at(
-				"my_list",
-				MyOtherObj.resolve_values(data_path.join("my_list")),
-			);
+			Self::merge_properties(&mut value, &data_path);
 		} else {
 			value = data_path.value();
 			data_path.next();
@@ -214,5 +197,51 @@ impl ResolveValue for Query {
 			value.merge(Self::resolve_values(data_path));
 		}
 		value
+	}
+}
+
+impl ResolveValue for bool {}
+impl ResolveValue for f64 {}
+// TODO?
+// impl ResolveValue for juniper::ID {}
+impl ResolveValue for String {}
+impl ResolveValue for u32 {}
+
+struct MyObj {
+	id: u32,
+	name: String,
+}
+
+impl ResolveValue for MyObj {
+	fn merge_properties(value: &mut serde_yaml::Value, data_path: &DataPath) {
+		value.merge_at("id", u32::resolve_value(data_path.join("id")));
+		value.merge_at("name", String::resolve_values(data_path.join("name")));
+	}
+}
+
+struct MyOtherObj {
+	id: u32,
+	alias: String,
+}
+
+impl ResolveValue for MyOtherObj {
+	fn merge_properties(value: &mut serde_yaml::Value, data_path: &DataPath) {
+		value.merge_at("id", u32::resolve_value(data_path.join("id")));
+		value.merge_at("alias", String::resolve_values(data_path.join("alias")));
+	}
+}
+
+struct Query {
+	my_obj: MyObj,
+	my_list: Vec<MyOtherObj>,
+}
+
+impl ResolveValue for Query {
+	fn merge_properties(value: &mut serde_yaml::Value, data_path: &DataPath) {
+		value.merge_at("my_obj", MyObj::resolve_value(data_path.join("my_obj")));
+		value.merge_at(
+			"my_list",
+			MyOtherObj::resolve_values(data_path.join("my_list")),
+		);
 	}
 }
