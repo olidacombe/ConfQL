@@ -20,7 +20,7 @@ pub struct DataPath<'a> {
 impl<'a> DataPath<'a> {
 	pub fn next(&mut self) {
 		use Level::{Dir, File};
-		match self.level {
+		match &self.level {
 			File => {
 				self.level = Dir;
 			}
@@ -54,7 +54,8 @@ impl<'a> DataPath<'a> {
 		}
 	}
 	pub fn value(&self) -> serde_yaml::Value {
-		match self.level {
+		use Level::{Dir, File};
+		match &self.level {
 			Dir => self.get_value(&self.index()),
 			File => self.get_value(&self.file()),
 		}
@@ -72,13 +73,15 @@ impl<'a> DataPath<'a> {
 	fn get_value(&self, path: &PathBuf) -> Result<serde_yaml::Value, DataResolverError> {
 		let value = value_from_file(&path)?;
 		let value = get_sub_value_at_address(&value, &self.address)?;
-		Ok(*value)
+		// not something I love
+		Ok(value.clone())
 	}
 	fn index(&self) -> PathBuf {
 		self.path.join("index.yml")
 	}
 	pub fn done(&self) -> bool {
-		match self.level {
+		use Level::{Dir, File};
+		match &self.level {
 			File => false,
 			Dir => self.address.is_empty(),
 		}
@@ -91,7 +94,7 @@ trait Merge {
 }
 
 impl Merge for serde_yaml::Value {
-	fn merge(&mut self, mergee: Self) -> Result<&mut Self, DataResolverError> {
+	fn merge(&mut self, mut mergee: Self) -> Result<&mut Self, DataResolverError> {
 		use serde_yaml::Value::{Bool, Mapping, Null, Number, Sequence, String};
 		use std::mem::replace;
 		use DataResolverError::IncompatibleYamlMerge;
@@ -104,8 +107,9 @@ impl Merge for serde_yaml::Value {
 			}
 			Bool(_) => {
 				if !mergee.is_bool() {
+					// TODO wrap this abhorrent thing in a function
 					return Err(IncompatibleYamlMerge {
-						dst: *self,
+						dst: self.clone(),
 						src: mergee,
 					});
 				}
@@ -114,7 +118,7 @@ impl Merge for serde_yaml::Value {
 			Number(_) => {
 				if !mergee.is_number() {
 					return Err(IncompatibleYamlMerge {
-						dst: *self,
+						dst: self.clone(),
 						src: mergee,
 					});
 				}
@@ -123,7 +127,7 @@ impl Merge for serde_yaml::Value {
 			String(_) => {
 				if !mergee.is_string() {
 					return Err(IncompatibleYamlMerge {
-						dst: *self,
+						dst: self.clone(),
 						src: mergee,
 					});
 				}
@@ -134,7 +138,7 @@ impl Merge for serde_yaml::Value {
 					list.append(appendee);
 				} else {
 					return Err(IncompatibleYamlMerge {
-						dst: *self,
+						dst: self.clone(),
 						src: mergee,
 					});
 				}
@@ -150,7 +154,7 @@ impl Merge for serde_yaml::Value {
 					}
 				} else {
 					return Err(IncompatibleYamlMerge {
-						dst: *self,
+						dst: self.clone(),
 						src: mergee,
 					});
 				}
@@ -171,14 +175,14 @@ impl Merge for serde_yaml::Value {
 			}
 			Ok(self)
 		} else {
-			Err(DataResolverError::CannotMergeIntoNonMapping(*self))
+			Err(DataResolverError::CannotMergeIntoNonMapping(self.clone()))
 		}
 	}
 }
 
 trait ResolveValue {
 	fn merge_properties(value: &mut serde_yaml::Value, data_path: &DataPath) {}
-	fn resolve_value(data_path: DataPath) -> serde_yaml::Value {
+	fn resolve_value(mut data_path: DataPath) -> serde_yaml::Value {
 		let mut value = serde_yaml::Value::Null;
 		if data_path.done() {
 			Self::merge_properties(&mut value, &data_path);
@@ -189,7 +193,7 @@ trait ResolveValue {
 		}
 		value
 	}
-	fn resolve_values(data_path: DataPath) -> serde_yaml::Value {
+	fn resolve_values(mut data_path: DataPath) -> serde_yaml::Value {
 		let value = serde_yaml::Value::Null;
 		let mut value = data_path.values();
 		if !data_path.done() {

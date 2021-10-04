@@ -15,6 +15,8 @@ pub enum DataResolverError {
         src: serde_yaml::Value,
         dst: serde_yaml::Value,
     },
+    #[error("Cannot merge into non-mapping `{0:?}`")]
+    CannotMergeIntoNonMapping(serde_yaml::Value),
     #[error("Key `{0}` not found")]
     KeyNotFound(String),
     #[error("Data not found")]
