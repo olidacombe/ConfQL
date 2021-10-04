@@ -7,18 +7,32 @@ use std::path::PathBuf;
 use super::values::{get_sub_value_at_address, value_from_file};
 use super::DataResolverError;
 
+enum Level {
+	Dir,
+	File,
+}
+
 pub struct DataPath<'a> {
-	pub path: PathBuf,
-	pub address: &'a [&'a str],
+	level: Level,
+	path: PathBuf,
+	address: &'a [&'a str],
 }
 
 impl<'a> DataPath<'a> {
-	pub fn next(&mut self) -> Option<&Self> {
-		self.address.split_first().map(move |(head, tail)| {
-			self.path.push(head);
-			self.address = tail;
-			&*self
-		})
+	pub fn next(&mut self) {
+		use Level::{Dir, File};
+		match self.level {
+			File => {
+				self.level = Dir;
+			}
+			Dir => {
+				if let Some((head, tail)) = self.address.split_first() {
+					self.path.push(head);
+					self.address = tail;
+					self.level = File;
+				}
+			}
+		}
 	}
 	fn file(&self) -> PathBuf {
 		self.path.with_extension("yml")
@@ -33,38 +47,35 @@ impl<'a> DataPath<'a> {
 			_ => Box::new(iter::empty::<PathBuf>()),
 		}
 	}
-	pub fn get_dir_object<T>(&self) -> Result<T, DataResolverError>
-	where
-		T: for<'de> Deserialize<'de>,
-	{
-		self.get_object(self.index())
+	pub fn value(&self) -> serde_yaml::Value {
+		match self.level {
+			Dir => self.get_value(&self.index()),
+			File => self.get_value(&self.file()),
+		}
+		.unwrap_or(serde_yaml::Value::Null)
 	}
-	pub fn get_dir_objects<T>(&self) -> Result<Vec<T>, DataResolverError>
-	where
-		T: for<'de> Deserialize<'de>,
-	{
-		self.files().map(|p| self.get_object(p)).collect()
+	pub fn values(&self) -> serde_yaml::Value {
+		if self.done() {
+			self.files()
+				.filter_map(|f| self.get_value(&f).ok())
+				.collect()
+		} else {
+			self.value()
+		}
 	}
-	pub fn get_file_object<T>(&self) -> Result<T, DataResolverError>
-	where
-		T: for<'de> Deserialize<'de>,
-	{
-		self.get_object(self.file())
-	}
-	fn get_object<T>(&self, path: PathBuf) -> Result<T, DataResolverError>
-	where
-		T: for<'de> Deserialize<'de>,
-	{
+	fn get_value(&self, path: &PathBuf) -> Result<serde_yaml::Value, DataResolverError> {
 		let value = value_from_file(&path)?;
 		let value = get_sub_value_at_address(&value, &self.address)?;
-		let object: T = serde_yaml::from_value(value.to_owned())?;
-		Ok(object)
+		Ok(*value)
 	}
 	fn index(&self) -> PathBuf {
 		self.path.join("index.yml")
 	}
 	pub fn done(&self) -> bool {
-		self.address.is_empty()
+		match self.level {
+			File => false,
+			Dir => self.address.is_empty(),
+		}
 	}
 }
 
@@ -78,6 +89,9 @@ impl Merge for serde_yaml::Value {
 		use serde_yaml::Value::{Bool, Mapping, Null, Number, Sequence, String};
 		use std::mem::replace;
 		use DataResolverError::IncompatibleYamlMerge;
+		if let Null = mergee {
+			return Ok(self);
+		}
 		match self {
 			Null => {
 				replace(self, mergee);
@@ -181,7 +195,10 @@ impl ResolveValue for Query {
 		let mut value = serde_yaml::Value::Null;
 		if data_path.done() {
 			value.merge_at("my_obj", MyObj.resolve_value(data_path.join("my_obj")));
-			value.merge_at("my_list", MyObj.resolve_values(data_path.join("my_list")));
+			value.merge_at(
+				"my_list",
+				MyOtherObj.resolve_values(data_path.join("my_list")),
+			);
 		} else {
 			value = data_path.value();
 			data_path.next();
@@ -191,15 +208,10 @@ impl ResolveValue for Query {
 	}
 	fn resolve_values(data_path: DataPath) -> serde_yaml::Value {
 		let value = serde_yaml::Value::Null;
-		match data_path.dir_data_paths() {
-			Some(data_paths) => {
-				value.merge(data_paths.map(Self::resolve_value));
-			}
-			None => {
-				value = data_path.value();
-				data_path.next();
-				value.merge(Self::resolve_value(data_path));
-			}
+		let mut value = data_path.values();
+		if !data_path.done() {
+			data_path.next();
+			value.merge(Self::resolve_values(data_path));
 		}
 		value
 	}
