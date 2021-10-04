@@ -139,7 +139,20 @@ impl Merge for serde_yaml::Value {
 		Ok(self)
 	}
 	fn merge_at(&mut self, key: &str, mergee: Self) -> Result<&mut Self, DataResolverError> {
-		Ok(self)
+		if let Self::Mapping(mapping) = self {
+			let key: Self = key.into();
+			match mapping.get_mut(&key) {
+				Some(value) => {
+					value.merge(mergee)?;
+				}
+				None => {
+					mapping.insert(key, mergee);
+				}
+			}
+			Ok(self)
+		} else {
+			Err(DataResolverError::CannotMergeIntoNonMapping(*self))
+		}
 	}
 }
 
