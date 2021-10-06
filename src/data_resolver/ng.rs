@@ -91,11 +91,21 @@ trait Merge {
 	fn merge_at(&mut self, key: &str, mergee: Self) -> Result<&mut Self, DataResolverError>;
 }
 
+macro_rules! merge_compat_err {
+	// The `tt` (token tree) designator is used for
+	// operators and tokens.
+	($self:expr, $mergee:expr) => {
+		Err(DataResolverError::IncompatibleYamlMerge {
+			dst: $self.clone(),
+			src: $mergee,
+		})
+	};
+}
+
 impl Merge for serde_yaml::Value {
 	fn merge(&mut self, mut mergee: Self) -> Result<&mut Self, DataResolverError> {
 		use serde_yaml::Value::{Bool, Mapping, Null, Number, Sequence, String};
 		use std::mem::replace;
-		use DataResolverError::IncompatibleYamlMerge;
 		if let Null = mergee {
 			return Ok(self);
 		}
@@ -105,29 +115,19 @@ impl Merge for serde_yaml::Value {
 			}
 			Bool(_) => {
 				if !mergee.is_bool() {
-					// TODO wrap this abhorrent thing in a function
-					return Err(IncompatibleYamlMerge {
-						dst: self.clone(),
-						src: mergee,
-					});
+					return merge_compat_err! {self, mergee};
 				}
 				replace(self, mergee);
 			}
 			Number(_) => {
 				if !mergee.is_number() {
-					return Err(IncompatibleYamlMerge {
-						dst: self.clone(),
-						src: mergee,
-					});
+					return merge_compat_err! {self, mergee};
 				}
 				replace(self, mergee);
 			}
 			String(_) => {
 				if !mergee.is_string() {
-					return Err(IncompatibleYamlMerge {
-						dst: self.clone(),
-						src: mergee,
-					});
+					return merge_compat_err! {self, mergee};
 				}
 				replace(self, mergee);
 			}
@@ -135,10 +135,7 @@ impl Merge for serde_yaml::Value {
 				if let Sequence(ref mut appendee) = mergee {
 					list.append(appendee);
 				} else {
-					return Err(IncompatibleYamlMerge {
-						dst: self.clone(),
-						src: mergee,
-					});
+					return merge_compat_err! {self, mergee};
 				}
 			}
 			Mapping(mapping) => {
@@ -151,10 +148,7 @@ impl Merge for serde_yaml::Value {
 						}
 					}
 				} else {
-					return Err(IncompatibleYamlMerge {
-						dst: self.clone(),
-						src: mergee,
-					});
+					return merge_compat_err! {self, mergee};
 				}
 			}
 		};
