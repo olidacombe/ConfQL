@@ -1,4 +1,3 @@
-use serde::Deserialize;
 use std::fs;
 use std::iter;
 use std::path::PathBuf;
@@ -105,31 +104,30 @@ macro_rules! merge_compat_err {
 impl Merge for serde_yaml::Value {
 	fn merge(&mut self, mut mergee: Self) -> Result<&mut Self, DataResolverError> {
 		use serde_yaml::Value::{Bool, Mapping, Null, Number, Sequence, String};
-		use std::mem::replace;
 		if let Null = mergee {
 			return Ok(self);
 		}
 		match self {
 			Null => {
-				replace(self, mergee);
+				*self = mergee;
 			}
 			Bool(_) => {
 				if !mergee.is_bool() {
 					return merge_compat_err! {self, mergee};
 				}
-				replace(self, mergee);
+				*self = mergee;
 			}
 			Number(_) => {
 				if !mergee.is_number() {
 					return merge_compat_err! {self, mergee};
 				}
-				replace(self, mergee);
+				*self = mergee;
 			}
 			String(_) => {
 				if !mergee.is_string() {
 					return merge_compat_err! {self, mergee};
 				}
-				replace(self, mergee);
+				*self = mergee;
 			}
 			Sequence(list) => {
 				if let Sequence(ref mut appendee) = mergee {
@@ -142,7 +140,7 @@ impl Merge for serde_yaml::Value {
 				if let Mapping(superimposee) = mergee {
 					for (key, src) in superimposee {
 						if let Some(dst) = mapping.get_mut(&key) {
-							dst.merge(src);
+							dst.merge(src)?;
 						} else {
 							mapping.insert(key, src);
 						}
@@ -173,26 +171,30 @@ impl Merge for serde_yaml::Value {
 }
 
 trait ResolveValue {
-	fn merge_properties(value: &mut serde_yaml::Value, data_path: &DataPath) {}
-	fn resolve_value(mut data_path: DataPath) -> serde_yaml::Value {
+	fn merge_properties(
+		_value: &mut serde_yaml::Value,
+		_data_path: &DataPath,
+	) -> Result<(), DataResolverError> {
+		Ok(())
+	}
+	fn resolve_value(mut data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
 		let mut value = serde_yaml::Value::Null;
 		if data_path.done() {
-			Self::merge_properties(&mut value, &data_path);
+			Self::merge_properties(&mut value, &data_path)?;
 		} else {
 			value = data_path.value();
 			data_path.next();
-			value.merge(Self::resolve_value(data_path));
+			value.merge(Self::resolve_value(data_path)?)?;
 		}
-		value
+		Ok(value)
 	}
-	fn resolve_values(mut data_path: DataPath) -> serde_yaml::Value {
-		let value = serde_yaml::Value::Null;
+	fn resolve_values(mut data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
 		let mut value = data_path.values();
 		if !data_path.done() {
 			data_path.next();
-			value.merge(Self::resolve_values(data_path));
+			value.merge(Self::resolve_values(data_path)?)?;
 		}
-		value
+		Ok(value)
 	}
 }
 
@@ -203,15 +205,22 @@ impl ResolveValue for f64 {}
 impl ResolveValue for String {}
 impl ResolveValue for u32 {}
 
+// TODO macro generates the below automatically for
+// such types
+
 struct MyObj {
 	id: u32,
 	name: String,
 }
 
 impl ResolveValue for MyObj {
-	fn merge_properties(value: &mut serde_yaml::Value, data_path: &DataPath) {
-		value.merge_at("id", u32::resolve_value(data_path.join("id")));
-		value.merge_at("name", String::resolve_values(data_path.join("name")));
+	fn merge_properties(
+		value: &mut serde_yaml::Value,
+		data_path: &DataPath,
+	) -> Result<(), DataResolverError> {
+		value.merge_at("id", u32::resolve_value(data_path.join("id"))?)?;
+		value.merge_at("name", String::resolve_values(data_path.join("name"))?)?;
+		Ok(())
 	}
 }
 
@@ -221,9 +230,13 @@ struct MyOtherObj {
 }
 
 impl ResolveValue for MyOtherObj {
-	fn merge_properties(value: &mut serde_yaml::Value, data_path: &DataPath) {
-		value.merge_at("id", u32::resolve_value(data_path.join("id")));
-		value.merge_at("alias", String::resolve_values(data_path.join("alias")));
+	fn merge_properties(
+		value: &mut serde_yaml::Value,
+		data_path: &DataPath,
+	) -> Result<(), DataResolverError> {
+		value.merge_at("id", u32::resolve_value(data_path.join("id"))?)?;
+		value.merge_at("alias", String::resolve_values(data_path.join("alias"))?)?;
+		Ok(())
 	}
 }
 
@@ -233,11 +246,15 @@ struct Query {
 }
 
 impl ResolveValue for Query {
-	fn merge_properties(value: &mut serde_yaml::Value, data_path: &DataPath) {
-		value.merge_at("my_obj", MyObj::resolve_value(data_path.join("my_obj")));
+	fn merge_properties(
+		value: &mut serde_yaml::Value,
+		data_path: &DataPath,
+	) -> Result<(), DataResolverError> {
+		value.merge_at("my_obj", MyObj::resolve_value(data_path.join("my_obj"))?)?;
 		value.merge_at(
 			"my_list",
-			MyOtherObj::resolve_values(data_path.join("my_list")),
-		);
+			MyOtherObj::resolve_values(data_path.join("my_list"))?,
+		)?;
+		Ok(())
 	}
 }
