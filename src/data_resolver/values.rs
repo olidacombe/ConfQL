@@ -171,4 +171,39 @@ mod tests {
         );
         Ok(())
     }
+
+    #[test]
+    fn takes_sub_value_at_address() -> Result<()> {
+        let mut value = yaml! {"
+            ---
+            my:
+                yaml:
+                    is:
+                        - hella
+                        - deep
+        "};
+
+        let taken = take_sub_value_at_address(&mut value, &["my", "yaml"])?;
+
+        assert_eq!(
+            taken,
+            yaml! {"
+            ---
+            is:
+                - hella
+                - deep
+        "}
+        );
+
+        assert_eq!(
+            value,
+            yaml! {"
+            ---
+            my:
+                yaml:
+        "}
+        );
+
+        Ok(())
+    }
 }
