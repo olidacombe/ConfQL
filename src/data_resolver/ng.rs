@@ -91,8 +91,6 @@ trait Merge {
 }
 
 macro_rules! merge_compat_err {
-	// The `tt` (token tree) designator is used for
-	// operators and tokens.
 	($self:expr, $mergee:expr) => {
 		Err(DataResolverError::IncompatibleYamlMerge {
 			dst: $self.clone(),
