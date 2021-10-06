@@ -121,162 +121,169 @@ mod tests {
 		Ok(())
 	}
 
-	// #[test]
-	// fn resolves_non_nullable_int_deeper() -> Result<()> {
-	// 	let mocks = TestFiles::new().unwrap();
-	// 	mocks.file(
-	// 		"index.yml",
-	// 		indoc! {"
-	//             ---
-	//             a:
-	//                 b:
-	//                     c: 3
-	//         "},
-	// 	)?;
-	// 	let i: u32 = mocks.resolver().get_non_nullable(&["a", "b", "c"])?;
-	// 	assert_eq!(i, 3);
-	// 	Ok(())
-	// }
+	#[test]
+	fn resolves_num_deeper() -> Result<()> {
+		let mocks = TestFiles::new().unwrap();
+		mocks.file(
+			"index.yml",
+			indoc! {"
+	            ---
+	            a:
+	                b:
+	                    c: 3
+	        "},
+		)?;
+		let v = mocks.data_path(&["a", "b", "c"]).value();
+		assert_eq!(v, yaml! {"3"});
+		Ok(())
+	}
 
-	// #[test]
-	// fn resolves_non_nullable_int() -> Result<()> {
-	// 	let test_cases = [
-	// 		[
-	// 			"a/b/c.yml",
-	// 			indoc! {"
-	//                 ---
-	//                 3
-	//             "},
-	// 		],
-	// 		[
-	// 			"a/b/c/index.yml",
-	// 			indoc! {"
-	//                 ---
-	//                 3
-	//             "},
-	// 		],
-	// 		[
-	// 			"a/b/index.yml",
-	// 			indoc! {"
-	//                 ---
-	//                 c: 3
-	//             "},
-	// 		],
-	// 		[
-	// 			"a/b.yml",
-	// 			indoc! {"
-	//                 ---
-	//                 c: 3
-	//             "},
-	// 		],
-	// 		[
-	// 			"a.yml",
-	// 			indoc! {"
-	//                 ---
-	//                 b:
-	//                     c: 3
-	//             "},
-	// 		],
-	// 		[
-	// 			"index.yml",
-	// 			indoc! {"
-	//                 ---
-	//                 a:
-	//                     b:
-	//                         c: 3
-	//             "},
-	// 		],
-	// 	];
+	#[test]
+	fn resolves_num() -> Result<()> {
+		let test_cases = [
+			// [
+			// 	"a/b/c.yml",
+			// 	indoc! {"
+			//         ---
+			//         3
+			//     "},
+			// ],
+			// [
+			// 	"a/b/c/index.yml",
+			// 	indoc! {"
+			//         ---
+			//         3
+			//     "},
+			// ],
+			// [
+			// 	"a/b/index.yml",
+			// 	indoc! {"
+			//         ---
+			//         c: 3
+			//     "},
+			// ],
+			// [
+			// 	"a/b.yml",
+			// 	indoc! {"
+			//         ---
+			//         c: 3
+			//     "},
+			// ],
+			[
+				"a.yml",
+				indoc! {"
+			        ---
+			        b:
+			            c: 3
+			    "},
+			],
+			[
+				"index.yml",
+				indoc! {"
+			        ---
+			        a:
+			            b:
+			                c: 3
+			    "},
+			],
+		];
 
-	// 	for [file, content] in test_cases {
-	// 		let mocks = TestFiles::new().unwrap();
-	// 		mocks.file(file, content)?;
-	// 		let i: u32 = mocks.resolver().get_non_nullable(&["a", "b", "c"])?;
-	// 		assert_eq!(i, 3);
-	// 	}
-	// 	Ok(())
-	// }
+		for [file, content] in test_cases {
+			let mocks = TestFiles::new().unwrap();
+			mocks.file(file, content)?;
+			let v = mocks.data_path(&["a", "b", "c"]).value();
+			assert_eq!(v, yaml! {"3"});
+		}
+		Ok(())
+	}
 
-	// #[test]
-	// fn resolves_non_nullable_list_int_at_root() -> Result<()> {
-	// 	let mocks = TestFiles::new().unwrap();
-	// 	mocks.file(
-	// 		"index.yml",
-	// 		indoc! {"
-	//             ---
-	//             - 1
-	//             - 2
-	//             - 3
-	//         "},
-	// 	)?;
-	// 	let v: Vec<u32> = mocks.resolver().get_non_nullable(&[])?;
-	// 	assert_eq!(v, vec![1, 2, 3]);
-	// 	Ok(())
-	// }
+	#[test]
+	fn resolves_list_num_at_root() -> Result<()> {
+		let mocks = TestFiles::new().unwrap();
+		// This is a bit of a funny case.  Later we'll
+		// provide a directive to escape hatch array at
+		// root behaviour to choose we we try merging
+		// files into array, or reading index file as
+		// array.
+		mocks.file(
+			"index.yml",
+			indoc! {"
+	            ---
+	            1
+	        "},
+		)?;
+		let v = mocks.data_path(&[]).values();
+		assert_eq!(v, yaml! {"[1]"});
+		Ok(())
+	}
 
-	// #[test]
-	// fn resolves_non_nullable_list_int_at_index() -> Result<()> {
-	// 	let mocks = TestFiles::new().unwrap();
-	// 	mocks.file(
-	// 		"index.yml",
-	// 		indoc! {"
-	//             ---
-	//             a:
-	//             - 4
-	//             - 5
-	//             - 6
-	//         "},
-	// 	)?;
-	// 	let v: Vec<u32> = mocks.resolver().get_non_nullable(&["a"])?;
-	// 	assert_eq!(v, vec![4, 5, 6]);
-	// 	Ok(())
-	// }
+	#[test]
+	fn resolves_non_nullable_list_int_at_root_files() -> Result<()> {
+		let mocks = TestFiles::new().unwrap();
+		// See above comment about in future chosing not this behaviour
+		mocks
+			.file(
+				"a.yml",
+				indoc! {"
+	            ---
+	            1
+	        "},
+			)?
+			.file(
+				"b.yml",
+				indoc! {"
+	            ---
+	            2
+	        "},
+			)?;
+		let v = mocks.data_path(&[]).values();
+		// we get not guarantee on order with file iterator
+		let mut v: Vec<u32> = serde_yaml::from_value(v)?;
+		v.sort();
+		assert_eq!(v, vec![1, 2]);
+		Ok(())
+	}
 
-	// #[test]
-	// fn resolves_non_nullable_list_int_at_root_files() -> Result<()> {
-	// 	let mocks = TestFiles::new().unwrap();
-	// 	mocks
-	// 		.file(
-	// 			"a.yml",
-	// 			indoc! {"
-	//             ---
-	//             1
-	//         "},
-	// 		)?
-	// 		.file(
-	// 			"b.yml",
-	// 			indoc! {"
-	//             ---
-	//             2
-	//         "},
-	// 		)?;
-	// 	let mut v: Vec<u32> = mocks.resolver().get_non_nullable(&[])?;
-	// 	v.sort();
-	// 	assert_eq!(v, vec![1, 2]);
-	// 	Ok(())
-	// }
+	#[test]
+	fn resolves_list_num_at_index() -> Result<()> {
+		let mocks = TestFiles::new().unwrap();
+		mocks.file(
+			"index.yml",
+			indoc! {"
+	            ---
+	            a:
+	            - 4
+	            - 5
+	            - 6
+	        "},
+		)?;
+		let v = mocks.data_path(&["a"]).values();
+		assert_eq!(v, yaml! {"[4, 5, 6]"});
+		Ok(())
+	}
 
-	// #[test]
-	// fn resolves_non_nullable_list_at_bottom_files() -> Result<()> {
-	// 	let mocks = TestFiles::new().unwrap();
-	// 	mocks
-	// 		.file(
-	// 			"a/b.yml",
-	// 			indoc! {"
-	//             ---
-	//             1
-	//         "},
-	// 		)?
-	// 		.file(
-	// 			"a/c.yml",
-	// 			indoc! {"
-	//             ---
-	//             2
-	//         "},
-	// 		)?;
-	// 	let mut v: Vec<u32> = mocks.resolver().get_non_nullable(&["a"])?;
-	// 	v.sort();
-	// 	assert_eq!(v, vec![1, 2]);
-	// 	Ok(())
-	// }
+	#[test]
+	fn resolves_list_num_at_bottom_files() -> Result<()> {
+		let mocks = TestFiles::new().unwrap();
+		mocks
+			.file(
+				"a/b.yml",
+				indoc! {"
+	            ---
+	            1
+	        "},
+			)?
+			.file(
+				"a/c.yml",
+				indoc! {"
+	            ---
+	            2
+	        "},
+			)?;
+		let v = mocks.data_path(&["a"]).values();
+		let mut v: Vec<u32> = serde_yaml::from_value(v)?;
+		v.sort();
+		assert_eq!(v, vec![1, 2]);
+		Ok(())
+	}
 }
