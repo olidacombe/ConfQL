@@ -1,104 +1,36 @@
-use serde::Deserialize;
 use std::fs;
 use std::iter;
-use std::marker::PhantomData;
 use std::path::PathBuf;
 
-use super::values::{get_sub_value_at_address, value_from_file};
+use super::values::{take_sub_value_at_address, value_from_file, Merge};
 use super::DataResolverError;
 
-trait LeafObject<'a, T>
-where
-	T: for<'de> Deserialize<'de>,
-{
-	fn leaf_object(&self) -> Result<T, DataResolverError>;
-}
-
-impl<'a, T> LeafObject<'a, Vec<T>> for DataPathIter<'a, Vec<T>>
-where
-	T: for<'de> Deserialize<'de>,
-{
-	fn leaf_object(&self) -> Result<Vec<T>, DataResolverError> {
-		self.data_path
-			.as_ref()
-			.ok_or(DataResolverError::EmptyDataPathAccess)?
-			.get_dir_objects()
-	}
-}
-
-impl<'a, T> LeafObject<'a, T> for DataPathIter<'a, T>
-where
-	T: for<'de> Deserialize<'de>,
-{
-	default fn leaf_object(&self) -> Result<T, DataResolverError> {
-		self.data_path
-			.as_ref()
-			.ok_or(DataResolverError::EmptyDataPathAccess)?
-			.get_dir_object()
-	}
-}
-
-enum DataPathIterState {
+enum Level {
 	Dir,
 	File,
 }
 
-pub struct DataPathIter<'a, T> {
-	data_path: Option<DataPath<'a>>,
-	state: DataPathIterState,
-	target_type: PhantomData<T>,
-}
-
-impl<'a, T> Iterator for DataPathIter<'a, T>
-where
-	T: for<'de> Deserialize<'de>,
-{
-	type Item = T;
-
-	fn next(&mut self) -> Option<Self::Item> {
-		use DataPathIterState::{Dir, File};
-		while let Some(ref mut data_path) = self.data_path {
-			match self.state {
-				File => {
-					self.state = Dir;
-					if let Ok(val) = data_path.get_file_object() {
-						return Some(val);
-					}
-				}
-				Dir => {
-					self.state = File;
-					if data_path.is_complete() {
-						let leaf = self.leaf_object();
-						self.data_path = None;
-						if let Ok(val) = leaf {
-							return Some(val);
-						}
-					} else {
-						let val = data_path.get_dir_object();
-						data_path.next();
-						if let Ok(val) = val {
-							return Some(val);
-						}
-					}
-				}
-			}
-		}
-		None
-	}
-}
-
 pub struct DataPath<'a> {
-	pub path: PathBuf,
-	pub address: &'a [&'a str],
+	level: Level,
+	path: PathBuf,
+	address: &'a [&'a str],
 }
 
 impl<'a> DataPath<'a> {
-	pub fn next(&mut self) -> Option<&Self> {
-		self.address.split_first().map(move |(head, tail)| {
-			self.path.push(head);
-			self.address = tail;
-			&*self
-		})
+	pub fn next(&mut self) {
+		use Level::{Dir, File};
+		match &self.level {
+			File => {
+				self.level = Dir;
+			}
+			Dir => {
+				if let Some((head, tail)) = self.address.split_first() {
+					self.path.push(head);
+					self.address = tail;
+					self.level = File;
+				}
+			}
+		}
 	}
 	fn file(&self) -> PathBuf {
 		self.path.with_extension("yml")
@@ -113,44 +45,238 @@ impl<'a> DataPath<'a> {
 			_ => Box::new(iter::empty::<PathBuf>()),
 		}
 	}
-	pub fn get_dir_object<T>(&self) -> Result<T, DataResolverError>
-	where
-		T: for<'de> Deserialize<'de>,
-	{
-		self.get_object(self.index())
+	pub fn join(&self, tail: &'a str) -> Self {
+		Self {
+			level: Level::File,
+			path: self.path.join(tail),
+			address: self.address,
+		}
 	}
-	pub fn get_dir_objects<T>(&self) -> Result<Vec<T>, DataResolverError>
-	where
-		T: for<'de> Deserialize<'de>,
-	{
-		self.files().map(|p| self.get_object(p)).collect()
+	pub fn value(&self) -> serde_yaml::Value {
+		use Level::{Dir, File};
+		match &self.level {
+			Dir => self.get_value(&self.index()),
+			File => self.get_value(&self.file()),
+		}
+		.unwrap_or(serde_yaml::Value::Null)
 	}
-	pub fn get_file_object<T>(&self) -> Result<T, DataResolverError>
-	where
-		T: for<'de> Deserialize<'de>,
-	{
-		self.get_object(self.file())
+	pub fn values(&self) -> serde_yaml::Value {
+		if self.done() {
+			self.files()
+				.filter_map(|f| self.get_value(&f).ok())
+				.collect()
+		} else {
+			self.value()
+		}
 	}
-	fn get_object<T>(&self, path: PathBuf) -> Result<T, DataResolverError>
-	where
-		T: for<'de> Deserialize<'de>,
-	{
+	fn get_value(&self, path: &PathBuf) -> Result<serde_yaml::Value, DataResolverError> {
 		let mut value = value_from_file(&path)?;
-		let value = get_sub_value_at_address(&mut value, &self.address)?;
-		let object: T = serde_yaml::from_value(value.to_owned())?;
-		Ok(object)
+		Ok(take_sub_value_at_address(&mut value, &self.address)?)
 	}
 	fn index(&self) -> PathBuf {
 		self.path.join("index.yml")
 	}
-	pub fn is_complete(&self) -> bool {
-		self.address.is_empty()
-	}
-	pub fn iter<T>(self) -> DataPathIter<'a, T> {
-		DataPathIter {
-			data_path: Some(self),
-			state: DataPathIterState::Dir,
-			target_type: PhantomData::<T>,
+	pub fn done(&self) -> bool {
+		use Level::{Dir, File};
+		match &self.level {
+			File => false,
+			Dir => self.address.is_empty(),
 		}
 	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use anyhow::Result;
+	use indoc::indoc;
+	use test_files::TestFiles;
+	use test_utils::yaml;
+
+	trait GetDataPath<'a> {
+		fn data_path(&self, address: &'a [&'a str]) -> DataPath<'a>;
+	}
+
+	impl<'a> GetDataPath<'a> for TestFiles {
+		fn data_path(&self, address: &'a [&'a str]) -> DataPath<'a> {
+			DataPath {
+				level: Level::Dir,
+				path: self.path().to_path_buf(),
+				address,
+			}
+		}
+	}
+	#[test]
+	fn resolves_num_at_root() -> Result<()> {
+		let mocks = TestFiles::new().unwrap();
+		mocks.file(
+			"index.yml",
+			indoc! {"
+                ---
+                3
+            "},
+		)?;
+		let v = mocks.data_path(&[]).value();
+		assert_eq!(v, yaml! {"3"});
+		Ok(())
+	}
+
+	// #[test]
+	// fn resolves_non_nullable_int_deeper() -> Result<()> {
+	// 	let mocks = TestFiles::new().unwrap();
+	// 	mocks.file(
+	// 		"index.yml",
+	// 		indoc! {"
+	//             ---
+	//             a:
+	//                 b:
+	//                     c: 3
+	//         "},
+	// 	)?;
+	// 	let i: u32 = mocks.resolver().get_non_nullable(&["a", "b", "c"])?;
+	// 	assert_eq!(i, 3);
+	// 	Ok(())
+	// }
+
+	// #[test]
+	// fn resolves_non_nullable_int() -> Result<()> {
+	// 	let test_cases = [
+	// 		[
+	// 			"a/b/c.yml",
+	// 			indoc! {"
+	//                 ---
+	//                 3
+	//             "},
+	// 		],
+	// 		[
+	// 			"a/b/c/index.yml",
+	// 			indoc! {"
+	//                 ---
+	//                 3
+	//             "},
+	// 		],
+	// 		[
+	// 			"a/b/index.yml",
+	// 			indoc! {"
+	//                 ---
+	//                 c: 3
+	//             "},
+	// 		],
+	// 		[
+	// 			"a/b.yml",
+	// 			indoc! {"
+	//                 ---
+	//                 c: 3
+	//             "},
+	// 		],
+	// 		[
+	// 			"a.yml",
+	// 			indoc! {"
+	//                 ---
+	//                 b:
+	//                     c: 3
+	//             "},
+	// 		],
+	// 		[
+	// 			"index.yml",
+	// 			indoc! {"
+	//                 ---
+	//                 a:
+	//                     b:
+	//                         c: 3
+	//             "},
+	// 		],
+	// 	];
+
+	// 	for [file, content] in test_cases {
+	// 		let mocks = TestFiles::new().unwrap();
+	// 		mocks.file(file, content)?;
+	// 		let i: u32 = mocks.resolver().get_non_nullable(&["a", "b", "c"])?;
+	// 		assert_eq!(i, 3);
+	// 	}
+	// 	Ok(())
+	// }
+
+	// #[test]
+	// fn resolves_non_nullable_list_int_at_root() -> Result<()> {
+	// 	let mocks = TestFiles::new().unwrap();
+	// 	mocks.file(
+	// 		"index.yml",
+	// 		indoc! {"
+	//             ---
+	//             - 1
+	//             - 2
+	//             - 3
+	//         "},
+	// 	)?;
+	// 	let v: Vec<u32> = mocks.resolver().get_non_nullable(&[])?;
+	// 	assert_eq!(v, vec![1, 2, 3]);
+	// 	Ok(())
+	// }
+
+	// #[test]
+	// fn resolves_non_nullable_list_int_at_index() -> Result<()> {
+	// 	let mocks = TestFiles::new().unwrap();
+	// 	mocks.file(
+	// 		"index.yml",
+	// 		indoc! {"
+	//             ---
+	//             a:
+	//             - 4
+	//             - 5
+	//             - 6
+	//         "},
+	// 	)?;
+	// 	let v: Vec<u32> = mocks.resolver().get_non_nullable(&["a"])?;
+	// 	assert_eq!(v, vec![4, 5, 6]);
+	// 	Ok(())
+	// }
+
+	// #[test]
+	// fn resolves_non_nullable_list_int_at_root_files() -> Result<()> {
+	// 	let mocks = TestFiles::new().unwrap();
+	// 	mocks
+	// 		.file(
+	// 			"a.yml",
+	// 			indoc! {"
+	//             ---
+	//             1
+	//         "},
+	// 		)?
+	// 		.file(
+	// 			"b.yml",
+	// 			indoc! {"
+	//             ---
+	//             2
+	//         "},
+	// 		)?;
+	// 	let mut v: Vec<u32> = mocks.resolver().get_non_nullable(&[])?;
+	// 	v.sort();
+	// 	assert_eq!(v, vec![1, 2]);
+	// 	Ok(())
+	// }
+
+	// #[test]
+	// fn resolves_non_nullable_list_at_bottom_files() -> Result<()> {
+	// 	let mocks = TestFiles::new().unwrap();
+	// 	mocks
+	// 		.file(
+	// 			"a/b.yml",
+	// 			indoc! {"
+	//             ---
+	//             1
+	//         "},
+	// 		)?
+	// 		.file(
+	// 			"a/c.yml",
+	// 			indoc! {"
+	//             ---
+	//             2
+	//         "},
+	// 		)?;
+	// 	let mut v: Vec<u32> = mocks.resolver().get_non_nullable(&["a"])?;
+	// 	v.sort();
+	// 	assert_eq!(v, vec![1, 2]);
+	// 	Ok(())
+	// }
 }

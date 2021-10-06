@@ -3,10 +3,9 @@ use std::path::Path;
 use thiserror::Error;
 
 mod data_path;
-mod ng;
 use data_path::DataPath;
 mod values;
-use values::{get_sub_value_at_address, value_from_file};
+use values::Merge;
 
 #[derive(Error, Debug)]
 pub enum DataResolverError {
@@ -34,42 +33,42 @@ pub struct DataResolver<'a> {
 }
 
 impl<'a> DataResolver<'a> {
-    pub fn get_non_nullable<T>(&self, address: &[&str]) -> Result<T, DataResolverError>
-    where
-        T: for<'de> Deserialize<'de>,
-    {
-        self.get_nullable(address)?
-            .ok_or(DataResolverError::DataNotFound)
-    }
+    // pub fn get_non_nullable<T>(&self, address: &[&str]) -> Result<T, DataResolverError>
+    // where
+    //     T: for<'de> Deserialize<'de>,
+    // {
+    //     self.get_nullable(address)?
+    //         .ok_or(DataResolverError::DataNotFound)
+    // }
 
-    pub fn get_non_nullable_list<T>(&self, address: &[&str]) -> Result<Vec<T>, DataResolverError>
-    where
-        T: for<'de> Deserialize<'de>,
-    {
-        self.get_nullable_list(address)?
-            .ok_or(DataResolverError::DataNotFound)
-    }
+    // pub fn get_non_nullable_list<T>(&self, address: &[&str]) -> Result<Vec<T>, DataResolverError>
+    // where
+    //     T: for<'de> Deserialize<'de>,
+    // {
+    //     self.get_nullable_list(address)?
+    //         .ok_or(DataResolverError::DataNotFound)
+    // }
 
-    pub fn get_nullable<T>(&self, address: &[&str]) -> Result<Option<T>, DataResolverError>
-    where
-        T: for<'de> Deserialize<'de>,
-    {
-        let data_path = DataPath {
-            path: self.root.to_path_buf(),
-            address: address,
-        };
-        Ok(data_path.iter().next())
-    }
+    // pub fn get_nullable<T>(&self, address: &[&str]) -> Result<Option<T>, DataResolverError>
+    // where
+    //     T: for<'de> Deserialize<'de>,
+    // {
+    //     let data_path = DataPath {
+    //         path: self.root.to_path_buf(),
+    //         address: address,
+    //     };
+    //     Ok(data_path.iter().next())
+    // }
 
-    pub fn get_nullable_list<T>(
-        &self,
-        address: &[&str],
-    ) -> Result<Option<Vec<T>>, DataResolverError>
-    where
-        T: for<'de> Deserialize<'de>,
-    {
-        Err(DataResolverError::DataNotFound)
-    }
+    // pub fn get_nullable_list<T>(
+    //     &self,
+    //     address: &[&str],
+    // ) -> Result<Option<Vec<T>>, DataResolverError>
+    // where
+    //     T: for<'de> Deserialize<'de>,
+    // {
+    //     Err(DataResolverError::DataNotFound)
+    // }
 }
 
 impl<'a> From<&'a Path> for DataResolver<'a> {
@@ -78,194 +77,103 @@ impl<'a> From<&'a Path> for DataResolver<'a> {
     }
 }
 
+trait ResolveValue {
+    fn merge_properties(
+        _value: &mut serde_yaml::Value,
+        _data_path: &DataPath,
+    ) -> Result<(), DataResolverError> {
+        Ok(())
+    }
+    fn resolve_value(mut data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
+        let mut value = serde_yaml::Value::Null;
+        if data_path.done() {
+            Self::merge_properties(&mut value, &data_path)?;
+        } else {
+            value = data_path.value();
+            data_path.next();
+            value.merge(Self::resolve_value(data_path)?)?;
+        }
+        Ok(value)
+    }
+    fn resolve_values(mut data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
+        let mut value = data_path.values();
+        if !data_path.done() {
+            data_path.next();
+            value.merge(Self::resolve_values(data_path)?)?;
+        }
+        Ok(value)
+    }
+}
+
+impl ResolveValue for bool {}
+impl ResolveValue for f64 {}
+// TODO?
+// impl ResolveValue for juniper::ID {}
+impl ResolveValue for String {}
+impl ResolveValue for u32 {}
+
+// TODO these tests belong more in "ng"
+// And the tests
+
 #[cfg(test)]
 mod tests {
+    use super::values::Merge;
     use super::*;
     use anyhow::Result;
-    use indoc::indoc;
-    use test_files::TestFiles;
 
-    trait GetResolver {
-        fn resolver(&self) -> DataResolver;
+    // TODO macro generates the below automatically for
+    // such types
+
+    struct MyObj {
+        id: u32,
+        name: String,
     }
 
-    impl GetResolver for TestFiles {
-        fn resolver(&self) -> DataResolver {
-            DataResolver::from(self.path())
+    impl ResolveValue for MyObj {
+        fn merge_properties(
+            value: &mut serde_yaml::Value,
+            data_path: &DataPath,
+        ) -> Result<(), DataResolverError> {
+            value.merge_at("id", u32::resolve_value(data_path.join("id"))?)?;
+            value.merge_at("name", String::resolve_values(data_path.join("name"))?)?;
+            Ok(())
         }
     }
 
-    #[test]
-    fn resolves_non_nullable_int_at_root() -> Result<()> {
-        let mocks = TestFiles::new().unwrap();
-        mocks.file(
-            "index.yml",
-            indoc! {"
-                ---
-                3
-            "},
-        )?;
-        let i: u32 = mocks.resolver().get_non_nullable(&[])?;
-        assert_eq!(i, 3);
-        Ok(())
+    struct MyOtherObj {
+        id: u32,
+        alias: String,
     }
 
-    #[test]
-    fn resolves_non_nullable_int_deeper() -> Result<()> {
-        let mocks = TestFiles::new().unwrap();
-        mocks.file(
-            "index.yml",
-            indoc! {"
-                ---
-                a:
-                    b:
-                        c: 3
-            "},
-        )?;
-        let i: u32 = mocks.resolver().get_non_nullable(&["a", "b", "c"])?;
-        assert_eq!(i, 3);
-        Ok(())
-    }
-
-    #[test]
-    fn resolves_non_nullable_int() -> Result<()> {
-        let test_cases = [
-            [
-                "a/b/c.yml",
-                indoc! {"
-                    ---
-                    3
-                "},
-            ],
-            [
-                "a/b/c/index.yml",
-                indoc! {"
-                    ---
-                    3
-                "},
-            ],
-            [
-                "a/b/index.yml",
-                indoc! {"
-                    ---
-                    c: 3
-                "},
-            ],
-            [
-                "a/b.yml",
-                indoc! {"
-                    ---
-                    c: 3
-                "},
-            ],
-            [
-                "a.yml",
-                indoc! {"
-                    ---
-                    b:
-                        c: 3
-                "},
-            ],
-            [
-                "index.yml",
-                indoc! {"
-                    ---
-                    a:
-                        b:
-                            c: 3
-                "},
-            ],
-        ];
-
-        for [file, content] in test_cases {
-            let mocks = TestFiles::new().unwrap();
-            mocks.file(file, content)?;
-            let i: u32 = mocks.resolver().get_non_nullable(&["a", "b", "c"])?;
-            assert_eq!(i, 3);
+    impl ResolveValue for MyOtherObj {
+        fn merge_properties(
+            value: &mut serde_yaml::Value,
+            data_path: &DataPath,
+        ) -> Result<(), DataResolverError> {
+            value.merge_at("id", u32::resolve_value(data_path.join("id"))?)?;
+            value.merge_at("alias", String::resolve_values(data_path.join("alias"))?)?;
+            Ok(())
         }
-        Ok(())
     }
 
-    #[test]
-    fn resolves_non_nullable_list_int_at_root() -> Result<()> {
-        let mocks = TestFiles::new().unwrap();
-        mocks.file(
-            "index.yml",
-            indoc! {"
-                ---
-                - 1
-                - 2
-                - 3
-            "},
-        )?;
-        let v: Vec<u32> = mocks.resolver().get_non_nullable(&[])?;
-        assert_eq!(v, vec![1, 2, 3]);
-        Ok(())
+    struct Query {
+        my_obj: MyObj,
+        my_list: Vec<MyOtherObj>,
     }
 
-    #[test]
-    fn resolves_non_nullable_list_int_at_index() -> Result<()> {
-        let mocks = TestFiles::new().unwrap();
-        mocks.file(
-            "index.yml",
-            indoc! {"
-                ---
-                a:
-                - 4
-                - 5
-                - 6
-            "},
-        )?;
-        let v: Vec<u32> = mocks.resolver().get_non_nullable(&["a"])?;
-        assert_eq!(v, vec![4, 5, 6]);
-        Ok(())
-    }
-
-    #[test]
-    fn resolves_non_nullable_list_int_at_root_files() -> Result<()> {
-        let mocks = TestFiles::new().unwrap();
-        mocks
-            .file(
-                "a.yml",
-                indoc! {"
-                ---
-                1
-            "},
-            )?
-            .file(
-                "b.yml",
-                indoc! {"
-                ---
-                2
-            "},
+    impl ResolveValue for Query {
+        fn merge_properties(
+            value: &mut serde_yaml::Value,
+            data_path: &DataPath,
+        ) -> Result<(), DataResolverError> {
+            value.merge_at("my_obj", MyObj::resolve_value(data_path.join("my_obj"))?)?;
+            value.merge_at(
+                "my_list",
+                MyOtherObj::resolve_values(data_path.join("my_list"))?,
             )?;
-        let mut v: Vec<u32> = mocks.resolver().get_non_nullable(&[])?;
-        v.sort();
-        assert_eq!(v, vec![1, 2]);
-        Ok(())
+            Ok(())
+        }
     }
 
-    #[test]
-    fn resolves_non_nullable_list_at_bottom_files() -> Result<()> {
-        let mocks = TestFiles::new().unwrap();
-        mocks
-            .file(
-                "a/b.yml",
-                indoc! {"
-                ---
-                1
-            "},
-            )?
-            .file(
-                "a/c.yml",
-                indoc! {"
-                ---
-                2
-            "},
-            )?;
-        let mut v: Vec<u32> = mocks.resolver().get_non_nullable(&["a"])?;
-        v.sort();
-        assert_eq!(v, vec![1, 2]);
-        Ok(())
-    }
+    // TODO test some calls to resolve_value(s) on some mock data :)
 }
