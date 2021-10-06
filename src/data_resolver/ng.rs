@@ -3,7 +3,7 @@ use std::fs;
 use std::iter;
 use std::path::PathBuf;
 
-use super::values::{get_sub_value_at_address, value_from_file};
+use super::values::{take_sub_value_at_address, value_from_file};
 use super::DataResolverError;
 
 enum Level {
@@ -71,10 +71,8 @@ impl<'a> DataPath<'a> {
 		}
 	}
 	fn get_value(&self, path: &PathBuf) -> Result<serde_yaml::Value, DataResolverError> {
-		let value = value_from_file(&path)?;
-		let value = get_sub_value_at_address(&value, &self.address)?;
-		// not something I love
-		Ok(value.clone())
+		let mut value = value_from_file(&path)?;
+		Ok(take_sub_value_at_address(&mut value, &self.address)?)
 	}
 	fn index(&self) -> PathBuf {
 		self.path.join("index.yml")

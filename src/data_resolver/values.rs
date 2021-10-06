@@ -5,17 +5,24 @@ use std::path::PathBuf;
 use super::DataResolverError;
 
 pub fn get_sub_value_at_address<'a>(
-    value: &'a Value,
+    value: &'a mut Value,
     address: &[&str],
-) -> Result<&'a Value, DataResolverError> {
+) -> Result<&'a mut Value, DataResolverError> {
     use itertools::FoldWhile::{Continue, Done};
     return address
         .iter()
-        .fold_while(Ok(value), |acc, i| match acc.unwrap().get(i) {
+        .fold_while(Ok(value), |acc, i| match acc.unwrap().get_mut(i) {
             Some(v) => Continue(Ok(v)),
             _ => Done(Err(DataResolverError::KeyNotFound(i.to_string()))),
         })
         .into_inner();
+}
+
+pub fn take_sub_value_at_address(
+    value: &mut Value,
+    address: &[&str],
+) -> Result<Value, DataResolverError> {
+    get_sub_value_at_address(value, address).map(|v| std::mem::replace(v, Value::Null))
 }
 
 pub fn value_from_file(path: &PathBuf) -> Result<Value, DataResolverError> {
