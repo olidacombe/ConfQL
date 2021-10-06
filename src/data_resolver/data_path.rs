@@ -135,8 +135,8 @@ impl<'a> DataPath<'a> {
 	where
 		T: for<'de> Deserialize<'de>,
 	{
-		let value = value_from_file(&path)?;
-		let value = get_sub_value_at_address(&value, &self.address)?;
+		let mut value = value_from_file(&path)?;
+		let value = get_sub_value_at_address(&mut value, &self.address)?;
 		let object: T = serde_yaml::from_value(value.to_owned())?;
 		Ok(object)
 	}
