@@ -138,7 +138,7 @@ mod tests {
         }
     }
 
-    #[derive(Debug, Deserialize, PartialEq)]
+    #[derive(Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd)]
     struct MyOtherObj {
         id: u32,
         alias: String,
@@ -218,6 +218,127 @@ mod tests {
             MyObj {
                 id: 1,
                 name: "Objy".to_owned()
+            }
+        );
+        Ok(())
+    }
+
+    fn resolves_object_from_broken_files() -> Result<()> {
+        let mocks = TestFiles::new().unwrap();
+        mocks
+            .file(
+                "id.yml",
+                indoc! {"
+                ---
+                1
+                name: Objy
+            "},
+            )?
+            .file(
+                "name.yml",
+                indoc! {"
+                ---
+                Objy
+            "},
+            )?;
+        let v: MyObj = mocks.resolver().get(&[])?;
+        assert_eq!(
+            v,
+            MyObj {
+                id: 1,
+                name: "Objy".to_owned()
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_deep_object_from_index() -> Result<()> {
+        let mocks = TestFiles::new().unwrap();
+        mocks.file(
+            "index.yml",
+            indoc! {"
+                ---
+                my_obj:
+                    id: 1
+                    name: Objy
+                my_list:
+                - id: 1
+                  alias: Obbo
+                - id: 2
+                  alias: Ali
+            "},
+        )?;
+        let v: Query = mocks.resolver().get(&[])?;
+        assert_eq!(
+            v,
+            Query {
+                my_obj: MyObj {
+                    id: 1,
+                    name: "Objy".to_owned()
+                },
+                my_list: vec![
+                    MyOtherObj {
+                        id: 1,
+                        alias: "Obbo".to_owned(),
+                    },
+                    MyOtherObj {
+                        id: 2,
+                        alias: "Ali".to_owned(),
+                    },
+                ]
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_nested_objects_from_file_tree() -> Result<()> {
+        let mocks = TestFiles::new().unwrap();
+        mocks
+            .file(
+                "my_obj/index.yml",
+                indoc! {"
+                ---
+                id: 1
+                name: Objy
+            "},
+            )?
+            .file(
+                "my_list/x.yml",
+                indoc! {"
+                ---
+                id: 1
+                alias: Obbo
+            "},
+            )?
+            .file(
+                "my_list/y.yml",
+                indoc! {"
+                ---
+                id: 2
+                alias: Ali
+            "},
+            )?;
+        let mut v: Query = mocks.resolver().get(&[])?;
+        v.my_list.sort();
+        assert_eq!(
+            v,
+            Query {
+                my_obj: MyObj {
+                    id: 1,
+                    name: "Objy".to_owned()
+                },
+                my_list: vec![
+                    MyOtherObj {
+                        id: 1,
+                        alias: "Obbo".to_owned(),
+                    },
+                    MyOtherObj {
+                        id: 2,
+                        alias: "Ali".to_owned(),
+                    },
+                ]
             }
         );
         Ok(())
