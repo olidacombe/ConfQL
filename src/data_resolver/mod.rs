@@ -343,4 +343,79 @@ mod tests {
         );
         Ok(())
     }
+
+    #[test]
+    fn resolves_broken_array_objects_from_file_tree() -> Result<()> {
+        let mocks = TestFiles::new().unwrap();
+        mocks
+            .file(
+                "my_obj/index.yml",
+                indoc! {"
+                ---
+                id: 1
+                name: Objy
+            "},
+            )?
+            .file(
+                "my_list/x.yml",
+                indoc! {"
+                ---
+                id: 1
+                alias: Obbo
+            "},
+            )?
+            .file(
+                "my_list/y/index.yml",
+                indoc! {"
+                ---
+                id: 2
+            "},
+            )?
+            .file(
+                "my_list/y/alias.yml",
+                indoc! {"
+                    Ali
+                "},
+            )?
+            .file(
+                "my_list/z/id.yml",
+                indoc! {"
+                ---
+                3
+            "},
+            )?
+            .file(
+                "my_list/z/alias.yml",
+                indoc! {"
+                ---
+                Johnny Utah
+            "},
+            )?;
+        let mut v: Query = mocks.resolver().get(&[])?;
+        v.my_list.sort();
+        assert_eq!(
+            v,
+            Query {
+                my_obj: MyObj {
+                    id: 1,
+                    name: "Objy".to_owned()
+                },
+                my_list: vec![
+                    MyOtherObj {
+                        id: 1,
+                        alias: "Obbo".to_owned(),
+                    },
+                    MyOtherObj {
+                        id: 2,
+                        alias: "Ali".to_owned(),
+                    },
+                    MyOtherObj {
+                        id: 3,
+                        alias: "Johnny Utah".to_owned(),
+                    },
+                ]
+            }
+        );
+        Ok(())
+    }
 }
