@@ -17,6 +17,47 @@ pub struct DataPath<'a> {
 }
 
 impl<'a> DataPath<'a> {
+	pub fn done(&self) -> bool {
+		use Level::{Dir, File};
+		match &self.level {
+			File => false,
+			Dir => self.address.is_empty(),
+		}
+	}
+	fn file(&self) -> PathBuf {
+		self.path.with_extension("yml")
+	}
+	fn files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
+		match fs::read_dir(&self.path) {
+			Ok(reader) => Box::new(
+				reader
+					.filter_map(|dir_entry| dir_entry.ok())
+					.map(|dir_entry| dir_entry.path()),
+			),
+			_ => Box::new(iter::empty::<PathBuf>()),
+		}
+	}
+	fn get_value(&self, path: &PathBuf) -> Result<serde_yaml::Value, DataResolverError> {
+		let mut value = value_from_file(&path)?;
+		Ok(take_sub_value_at_address(&mut value, &self.address)?)
+	}
+	fn index(&self) -> PathBuf {
+		self.path.join("index.yml")
+	}
+	pub fn join(&self, tail: &'a str) -> Self {
+		Self {
+			level: Level::File,
+			path: self.path.join(tail),
+			address: self.address,
+		}
+	}
+	pub fn new<P: Into<PathBuf>>(path: P, address: &'a [&'a str]) -> Self {
+		Self {
+			address,
+			level: Level::Dir,
+			path: path.into(),
+		}
+	}
 	pub fn next(&mut self) -> &mut Self {
 		use Level::{Dir, File};
 		match &self.level {
@@ -32,26 +73,6 @@ impl<'a> DataPath<'a> {
 			}
 		}
 		self
-	}
-	fn file(&self) -> PathBuf {
-		self.path.with_extension("yml")
-	}
-	fn files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
-		match fs::read_dir(&self.path) {
-			Ok(reader) => Box::new(
-				reader
-					.filter_map(|dir_entry| dir_entry.ok())
-					.map(|dir_entry| dir_entry.path()),
-			),
-			_ => Box::new(iter::empty::<PathBuf>()),
-		}
-	}
-	pub fn join(&self, tail: &'a str) -> Self {
-		Self {
-			level: Level::File,
-			path: self.path.join(tail),
-			address: self.address,
-		}
 	}
 	pub fn value(&self) -> serde_yaml::Value {
 		use Level::{Dir, File};
@@ -70,20 +91,6 @@ impl<'a> DataPath<'a> {
 			self.value()
 		}
 	}
-	fn get_value(&self, path: &PathBuf) -> Result<serde_yaml::Value, DataResolverError> {
-		let mut value = value_from_file(&path)?;
-		Ok(take_sub_value_at_address(&mut value, &self.address)?)
-	}
-	fn index(&self) -> PathBuf {
-		self.path.join("index.yml")
-	}
-	pub fn done(&self) -> bool {
-		use Level::{Dir, File};
-		match &self.level {
-			File => false,
-			Dir => self.address.is_empty(),
-		}
-	}
 }
 
 #[cfg(test)]
@@ -100,13 +107,10 @@ mod tests {
 
 	impl<'a> GetDataPath<'a> for TestFiles {
 		fn data_path(&self, address: &'a [&'a str]) -> DataPath<'a> {
-			DataPath {
-				level: Level::Dir,
-				path: self.path().to_path_buf(),
-				address,
-			}
+			DataPath::new(self.path(), address)
 		}
 	}
+
 	#[test]
 	fn resolves_num_at_root() -> Result<()> {
 		let mocks = TestFiles::new().unwrap();

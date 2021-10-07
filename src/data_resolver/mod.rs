@@ -49,16 +49,15 @@ impl<'a> DataResolver<'a> {
     //         .ok_or(DataResolverError::DataNotFound)
     // }
 
-    // pub fn get_nullable<T>(&self, address: &[&str]) -> Result<Option<T>, DataResolverError>
-    // where
-    //     T: for<'de> Deserialize<'de>,
-    // {
-    //     let data_path = DataPath {
-    //         path: self.root.to_path_buf(),
-    //         address: address,
-    //     };
-    //     Ok(data_path.iter().next())
-    // }
+    pub fn get<T>(&self, address: &[&str]) -> Result<T, DataResolverError>
+    where
+        T: for<'de> Deserialize<'de>,
+        T: ResolveValue,
+    {
+        let data_path = DataPath::new(self.root, address);
+        let value = T::resolve_value(data_path)?;
+        Ok(serde_yaml::from_value(value)?)
+    }
 
     // pub fn get_nullable_list<T>(
     //     &self,
@@ -77,7 +76,7 @@ impl<'a> From<&'a Path> for DataResolver<'a> {
     }
 }
 
-trait ResolveValue {
+pub trait ResolveValue {
     fn merge_properties(
         _value: &mut serde_yaml::Value,
         _data_path: &DataPath,
@@ -112,18 +111,18 @@ impl ResolveValue for f64 {}
 impl ResolveValue for String {}
 impl ResolveValue for u32 {}
 
-// TODO these tests belong more in "ng"
-// And the tests
-
 #[cfg(test)]
 mod tests {
     use super::values::Merge;
     use super::*;
     use anyhow::Result;
+    use indoc::indoc;
+    use test_files::TestFiles;
 
     // TODO macro generates the below automatically for
     // such types
 
+    #[derive(Deserialize, Debug)]
     struct MyObj {
         id: u32,
         name: String,
@@ -140,6 +139,7 @@ mod tests {
         }
     }
 
+    #[derive(Deserialize, Debug)]
     struct MyOtherObj {
         id: u32,
         alias: String,
@@ -156,6 +156,7 @@ mod tests {
         }
     }
 
+    #[derive(Deserialize, Debug)]
     struct Query {
         my_obj: MyObj,
         my_list: Vec<MyOtherObj>,
@@ -175,5 +176,34 @@ mod tests {
         }
     }
 
-    // TODO test some calls to resolve_value(s) on some mock data :)
+    trait GetResolver<'a> {
+        fn resolver(&'a self) -> DataResolver<'a>;
+    }
+
+    impl<'a> GetResolver<'a> for TestFiles {
+        fn resolver(&'a self) -> DataResolver<'a> {
+            DataResolver { root: self.path() }
+        }
+    }
+
+    #[test]
+    fn resolves_object_from_index() -> Result<()> {
+        let mocks = TestFiles::new().unwrap();
+        mocks.file(
+            "index.yml",
+            indoc! {"
+                ---
+                my_obj:
+                    id: 1
+                    name: Objy
+                my_list:
+                    - id: 1
+                      alias: Obbo
+                    - id: 2
+                      alias: Ali
+            "},
+        )?;
+        let v: Query = mocks.resolver().get(&[])?;
+        Ok(())
+    }
 }
