@@ -22,6 +22,7 @@ thiserror = "1.0.29"
 
 [dev-dependencies]
 anyhow = "1.0.44"
+color-eyre = "0.5.11"
 indoc = "1.0.3"
 tempdir = "0.3.7"
 test-files = { path = "test-files" }

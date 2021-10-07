@@ -84,11 +84,10 @@ pub trait ResolveValue {
         Ok(())
     }
     fn resolve_value(mut data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
-        let mut value = serde_yaml::Value::Null;
+        let mut value = data_path.value();
         if data_path.done() {
             Self::merge_properties(&mut value, &data_path)?;
         } else {
-            value = data_path.value();
             data_path.next();
             value.merge(Self::resolve_value(data_path)?)?;
         }
@@ -115,14 +114,14 @@ impl ResolveValue for u32 {}
 mod tests {
     use super::values::Merge;
     use super::*;
-    use anyhow::Result;
+    use color_eyre::Result;
     use indoc::indoc;
     use test_files::TestFiles;
 
     // TODO macro generates the below automatically for
     // such types
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Debug, Deserialize, PartialEq)]
     struct MyObj {
         id: u32,
         name: String,
@@ -134,12 +133,12 @@ mod tests {
             data_path: &DataPath,
         ) -> Result<(), DataResolverError> {
             value.merge_at("id", u32::resolve_value(data_path.join("id"))?)?;
-            value.merge_at("name", String::resolve_values(data_path.join("name"))?)?;
+            value.merge_at("name", String::resolve_value(data_path.join("name"))?)?;
             Ok(())
         }
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Debug, Deserialize, PartialEq)]
     struct MyOtherObj {
         id: u32,
         alias: String,
@@ -151,12 +150,12 @@ mod tests {
             data_path: &DataPath,
         ) -> Result<(), DataResolverError> {
             value.merge_at("id", u32::resolve_value(data_path.join("id"))?)?;
-            value.merge_at("alias", String::resolve_values(data_path.join("alias"))?)?;
+            value.merge_at("alias", String::resolve_value(data_path.join("alias"))?)?;
             Ok(())
         }
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Debug, Deserialize, PartialEq)]
     struct Query {
         my_obj: MyObj,
         my_list: Vec<MyOtherObj>,
@@ -187,23 +186,40 @@ mod tests {
     }
 
     #[test]
+    fn resolve_num() -> Result<()> {
+        color_eyre::install()?;
+        let mocks = TestFiles::new().unwrap();
+        mocks.file(
+            "index.yml",
+            indoc! {"
+                ---
+                1
+            "},
+        )?;
+        let v: u32 = mocks.resolver().get(&[])?;
+        assert_eq!(v, 1);
+        Ok(())
+    }
+
+    #[test]
     fn resolves_object_from_index() -> Result<()> {
         let mocks = TestFiles::new().unwrap();
         mocks.file(
             "index.yml",
             indoc! {"
                 ---
-                my_obj:
-                    id: 1
-                    name: Objy
-                my_list:
-                    - id: 1
-                      alias: Obbo
-                    - id: 2
-                      alias: Ali
+                id: 1
+                name: Objy
             "},
         )?;
-        let v: Query = mocks.resolver().get(&[])?;
+        let v: MyObj = mocks.resolver().get(&[])?;
+        assert_eq!(
+            v,
+            MyObj {
+                id: 1,
+                name: "Objy".to_owned()
+            }
+        );
         Ok(())
     }
 }
