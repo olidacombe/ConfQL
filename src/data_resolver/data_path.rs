@@ -17,7 +17,7 @@ pub struct DataPath<'a> {
 }
 
 impl<'a> DataPath<'a> {
-	pub fn next(&mut self) {
+	pub fn next(&mut self) -> &mut Self {
 		use Level::{Dir, File};
 		match &self.level {
 			File => {
@@ -31,6 +31,7 @@ impl<'a> DataPath<'a> {
 				}
 			}
 		}
+		self
 	}
 	fn file(&self) -> PathBuf {
 		self.path.with_extension("yml")
@@ -139,65 +140,6 @@ mod tests {
 	}
 
 	#[test]
-	fn resolves_num() -> Result<()> {
-		let test_cases = [
-			// [
-			// 	"a/b/c.yml",
-			// 	indoc! {"
-			//         ---
-			//         3
-			//     "},
-			// ],
-			// [
-			// 	"a/b/c/index.yml",
-			// 	indoc! {"
-			//         ---
-			//         3
-			//     "},
-			// ],
-			// [
-			// 	"a/b/index.yml",
-			// 	indoc! {"
-			//         ---
-			//         c: 3
-			//     "},
-			// ],
-			// [
-			// 	"a/b.yml",
-			// 	indoc! {"
-			//         ---
-			//         c: 3
-			//     "},
-			// ],
-			[
-				"a.yml",
-				indoc! {"
-			        ---
-			        b:
-			            c: 3
-			    "},
-			],
-			[
-				"index.yml",
-				indoc! {"
-			        ---
-			        a:
-			            b:
-			                c: 3
-			    "},
-			],
-		];
-
-		for [file, content] in test_cases {
-			let mocks = TestFiles::new().unwrap();
-			mocks.file(file, content)?;
-			let v = mocks.data_path(&["a", "b", "c"]).value();
-			assert_eq!(v, yaml! {"3"});
-		}
-		Ok(())
-	}
-
-	#[test]
 	fn resolves_list_num_at_root() -> Result<()> {
 		let mocks = TestFiles::new().unwrap();
 		// This is a bit of a funny case.  Later we'll
@@ -280,7 +222,7 @@ mod tests {
 	            2
 	        "},
 			)?;
-		let v = mocks.data_path(&["a"]).values();
+		let v = mocks.data_path(&["a"]).next().next().values();
 		let mut v: Vec<u32> = serde_yaml::from_value(v)?;
 		v.sort();
 		assert_eq!(v, vec![1, 2]);
