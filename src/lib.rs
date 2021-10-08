@@ -1,4 +1,3 @@
-#![feature(specialization)]
 extern crate proc_macro;
 
 mod code_gen;
