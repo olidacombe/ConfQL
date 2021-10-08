@@ -48,7 +48,7 @@ where
 {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         tokens.extend(quote! {
-            use crate::data_resolver::{DataPath, DataResolverError, ResolveValue};
+            use data_resolver::{DataPath, DataResolverError, ResolveValue};
             use juniper::GraphQLObject;
             use serde::Deserialize;
         });

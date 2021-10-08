@@ -1,31 +1,8 @@
-[package]
-name = "confql"
-version = "0.1.0"
-edition = "2018"
+[workspace]
 
-[lib]
-proc-macro = true
-
-[[test]]
-name = "tests"
-path = "tests/all.rs"
-
-[dependencies]
-graphql-parser = "0.3.0"
-itertools = "0.10.1"
-juniper = "0.15.7"
-proc-macro2 = "1.0.29"
-quote = "1.0.9"
-serde = "1.0.130"
-serde_yaml = "0.8.21"
-thiserror = "1.0.29"
-
-[dev-dependencies]
-anyhow = "1.0.44"
-color-eyre = "0.5.11"
-indoc = "1.0.3"
-tempdir = "0.3.7"
-test-files = { path = "test-files" }
-test-utils = { path = "test-utils" }
-touch = "0.0.1"
-trybuild = { version = "1.0", features = ["diff"] }
+members = [
+	"data-resolver",
+	"proc-macro",
+	"test-files",
+	"test-utils"
+]
