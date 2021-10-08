@@ -1,6 +1,8 @@
+#![feature(specialization)]
 extern crate proc_macro;
 
 mod code_gen;
+mod data_resolver;
 
 use code_gen::CodeGen;
 
