@@ -46,9 +46,19 @@ where
                 let name = format_ident!("{}", obj.name.as_ref());
                 let fields = obj.fields.iter();
                 quote! {
+                    #[derive(Deserialize)]
                     #[derive(GraphQLObject)]
                     struct #name {
                     #(#fields),*
+                    }
+
+                    impl ResolveValue for #name {
+                        fn merge_properties(
+                            value: &mut serde_yaml::Value,
+                            data_path: &DataPath
+                        ) -> Result<(), DataResolverError> {
+                            Ok(())
+                        }
                     }
                 }
             }

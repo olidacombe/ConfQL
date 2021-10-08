@@ -43,11 +43,7 @@ where
 {
     fn inner_tokens(&self) -> TokenStream {
         use query::Type::{ListType, NamedType, NonNullType};
-        let ty = match self {
-            Self::Nullable(ty) => ty,
-            Self::NonNullable(ty) => ty,
-        };
-        match ty {
+        match self.schema_type() {
             NamedType(val) => {
                 let val = format_ident!("{}", val.as_ref());
                 quote! {#val}
@@ -58,6 +54,17 @@ where
             }
             NonNullType(_) => unreachable!(),
         }
+    }
+    fn is_list(&self) -> bool {
+        if let query::Type::ListType(_) = self.schema_type() {
+            return true;
+        }
+        false
+    }
+    fn schema_type(&self) -> &schema::Type<'a, T> {
+        use FieldType::{NonNullable, Nullable};
+        let (Nullable(ty) | NonNullable(ty)) = self;
+        ty
     }
 }
 

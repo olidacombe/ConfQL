@@ -3,7 +3,7 @@ use std::path::Path;
 use thiserror::Error;
 
 mod data_path;
-use data_path::DataPath;
+pub use data_path::DataPath;
 mod values;
 use values::Merge;
 

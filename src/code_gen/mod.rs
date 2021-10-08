@@ -47,7 +47,11 @@ where
     T: Clone,
 {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        tokens.extend(quote! {use juniper::GraphQLObject;});
+        tokens.extend(quote! {
+            use crate::data_resolver::{DataPath, DataResolverError, ResolveValue};
+            use juniper::GraphQLObject;
+            use serde::Deserialize;
+        });
         let types = self.types.iter();
         tokens.extend(quote! {#(#types)*});
     }
