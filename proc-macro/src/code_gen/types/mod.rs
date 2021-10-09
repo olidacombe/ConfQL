@@ -45,6 +45,7 @@ where
             Self::Object(obj) => {
                 let name = format_ident!("{}", obj.name.as_ref());
                 let fields = obj.fields.iter();
+                let merge_lines = obj.fields.iter().map(|f| f.merge_line());
                 quote! {
                     #[derive(Deserialize)]
                     #[derive(GraphQLObject)]
@@ -57,6 +58,7 @@ where
                             value: &mut serde_yaml::Value,
                             data_path: &DataPath
                         ) -> Result<(), DataResolverError> {
+                            #(#merge_lines)*
                             Ok(())
                         }
                     }

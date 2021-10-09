@@ -5,7 +5,7 @@ use thiserror::Error;
 mod data_path;
 pub use data_path::DataPath;
 mod values;
-use values::Merge;
+pub use values::Merge;
 
 #[derive(Error, Debug)]
 pub enum DataResolverError {
