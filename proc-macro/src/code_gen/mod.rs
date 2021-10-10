@@ -1,7 +1,7 @@
 use graphql_parser::parse_schema;
 use graphql_parser::{query, schema};
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 use std::convert::TryFrom;
 use thiserror::Error;
 
@@ -42,6 +42,7 @@ impl CodeGen {
 
 struct SchemaParse<'a, T: query::Text<'a>> {
     types: Vec<Type<'a, T>>,
+    query_type: T::Value,
 }
 
 impl<'a, T> SchemaParse<'a, T>
@@ -64,6 +65,14 @@ where
             impl juniper::Context for Ctx {}
         }
     }
+    fn root_node(&self) -> TokenStream {
+        let query_type = format_ident!("{}", self.query_type.as_ref());
+        quote! {
+            struct Mutation;
+
+            type Schema = juniper::RootNode<'static, #query_type, Mutation, juniper::EmptySubscription<Context>>;
+        }
+    }
 }
 
 impl<'a, T> ToTokens for SchemaParse<'a, T>
@@ -76,6 +85,7 @@ where
         tokens.extend(self.context());
         let types = self.types.iter();
         tokens.extend(quote! {#(#types)*});
+        tokens.extend(self.root_node());
     }
 }
 
@@ -85,7 +95,7 @@ impl<'a, T: query::Text<'a>> TryFrom<schema::Document<'a, T>> for SchemaParse<'a
     fn try_from(doc: schema::Document<'a, T>) -> Result<Self, Self::Error> {
         use types::Object;
         let mut types = Vec::<Object<'a, T>>::new();
-        let mut query: Option<T::Value> = None;
+        let mut query_type: Option<T::Value> = None;
 
         use schema::Definition;
         doc.definitions.into_iter().for_each(|def| match def {
@@ -93,22 +103,22 @@ impl<'a, T: query::Text<'a>> TryFrom<schema::Document<'a, T>> for SchemaParse<'a
                 types.push(Object::from(def));
             }
             Definition::SchemaDefinition(schema) => {
-                if query.is_none() {
-                    query = schema.query;
+                if query_type.is_none() {
+                    query_type = schema.query;
                 }
             }
             _ => (),
         });
 
-        if query.is_none() {
+        if query_type.is_none() {
             return Err(Self::Error::SchemaMissingQuery);
         }
-        let query = query.unwrap();
+        let query_type = query_type.unwrap();
         let types = types
             .into_iter()
             .map(|t| {
                 use Type::{Object, Query};
-                if t.name == query {
+                if t.name == query_type {
                     Query(t)
                 } else {
                     Object(t)
@@ -116,6 +126,6 @@ impl<'a, T: query::Text<'a>> TryFrom<schema::Document<'a, T>> for SchemaParse<'a
             })
             .collect();
 
-        Ok(Self { types })
+        Ok(Self { query_type, types })
     }
 }
