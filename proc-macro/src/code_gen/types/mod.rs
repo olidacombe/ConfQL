@@ -48,7 +48,7 @@ where
                 let merge_lines = obj.fields.iter().map(|f| f.merge_line());
                 quote! {
                     #[derive(Deserialize)]
-                    #[derive(GraphQLObject)]
+                    // #[derive(GraphQLObject)]
                     struct #name {
                     #(#fields),*
                     }
@@ -60,6 +60,13 @@ where
                         ) -> Result<(), DataResolverError> {
                             #(#merge_lines)*
                             Ok(())
+                        }
+                    }
+
+                    #[graphql_object(context = Ctx)]
+                    impl #name {
+                        fn thing(context: &Ctx) -> Result<String, DataResolverError> {
+                            Ok("bla".to_owned())
                         }
                     }
                 }

@@ -37,8 +37,30 @@ impl CodeGen {
     }
 }
 
-struct SchemaParse<'doc, T: query::Text<'doc>> {
-    types: Vec<Type<'doc, T>>,
+struct SchemaParse<'a, T: query::Text<'a>> {
+    types: Vec<Type<'a, T>>,
+}
+
+impl<'a, T> SchemaParse<'a, T>
+where
+    T: query::Text<'a>,
+{
+    fn imports(&self) -> TokenStream {
+        quote! {
+            use data_resolver::{DataPath, DataResolver, DataResolverError, Merge, ResolveValue};
+            use juniper::{Context, GraphQLObject, graphql_object};
+            use serde::Deserialize;
+        }
+    }
+    fn context(&self) -> TokenStream {
+        quote! {
+            struct Ctx {
+                data_resolver: DataResolver
+            }
+
+            impl juniper::Context for Ctx {}
+        }
+    }
 }
 
 impl<'a, T> ToTokens for SchemaParse<'a, T>
@@ -47,11 +69,8 @@ where
     T: Clone,
 {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        tokens.extend(quote! {
-            use data_resolver::{DataPath, DataResolverError, Merge, ResolveValue};
-            use juniper::GraphQLObject;
-            use serde::Deserialize;
-        });
+        tokens.extend(self.imports());
+        tokens.extend(self.context());
         let types = self.types.iter();
         tokens.extend(quote! {#(#types)*});
     }
