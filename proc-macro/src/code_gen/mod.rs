@@ -2,6 +2,8 @@ use graphql_parser::parse_schema;
 use graphql_parser::{query, schema};
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
+use std::collections::HashMap;
+use std::convert::TryFrom;
 use thiserror::Error;
 
 mod types;
@@ -10,6 +12,8 @@ use types::Type;
 // https://nick.groenen.me/posts/rust-error-handling/#libraries-versus-applications
 #[derive(Error, Debug)]
 pub enum CodeGenError {
+    #[error("No query definition in schema")]
+    SchemaMissingQuery,
     #[error(transparent)]
     QraphQLError(#[from] graphql_parser::schema::ParseError),
 }
@@ -32,7 +36,7 @@ impl CodeGen {
         use SchemaLocation::Literal;
         // TODO a match when we have FilePath variant
         let Literal(schema) = self.source;
-        let parsed = SchemaParse::<String>::from(parse_schema::<String>(&schema)?);
+        let parsed = SchemaParse::<String>::try_from(parse_schema::<String>(&schema)?)?;
         Ok(parsed.into_token_stream())
     }
 }
@@ -76,17 +80,43 @@ where
     }
 }
 
-impl<'a, T: query::Text<'a>> From<schema::Document<'a, T>> for SchemaParse<'a, T> {
-    fn from(doc: schema::Document<'a, T>) -> Self {
-        let mut types = Vec::<Type<'a, T>>::new();
+impl<'a, T: query::Text<'a>> TryFrom<schema::Document<'a, T>> for SchemaParse<'a, T> {
+    type Error = CodeGenError;
+
+    fn try_from(doc: schema::Document<'a, T>) -> Result<Self, Self::Error> {
+        use types::Object;
+        let mut types = Vec::<Object<'a, T>>::new();
+        let mut query: Option<T::Value> = None;
 
         use schema::Definition;
-        doc.definitions.into_iter().for_each(|def| {
-            if let Definition::TypeDefinition(def) = def {
-                types.push(Type::from(def))
+        doc.definitions.into_iter().for_each(|def| match def {
+            Definition::TypeDefinition(def) => {
+                types.push(Object::from(def));
             }
+            Definition::SchemaDefinition(schema) => {
+                if query.is_none() {
+                    query = schema.query;
+                }
+            }
+            _ => (),
         });
 
-        Self { types }
+        if query.is_none() {
+            return Err(Self::Error::SchemaMissingQuery);
+        }
+        let query = query.unwrap();
+        let types = types
+            .into_iter()
+            .map(|t| {
+                use Type::{Object, Query};
+                if t.name == query {
+                    Query(t)
+                } else {
+                    Object(t)
+                }
+            })
+            .collect();
+
+        Ok(Self { types })
     }
 }

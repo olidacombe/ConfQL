@@ -36,6 +36,21 @@ where
             value.merge_at(#name, #ty::#resolver(data_path.join(#name))?)?;
         }
     }
+    pub fn resolver(&self) -> TokenStream {
+        let Self { name, field_type } = self;
+        let name = name.as_ref();
+        let field_name = format_ident!("{}", name);
+        quote! {
+            fn #field_name(context: &Ctx) -> Result<#field_type, DataResolverError> {
+                // TODO
+                // TODO
+                // The right context.data_resolver.get or whatever
+                context.data_resolver.get(&[#name])
+                // TODO
+                // TODO
+            }
+        }
+    }
 }
 
 impl<'a, T> ToTokens for Field<'a, T>

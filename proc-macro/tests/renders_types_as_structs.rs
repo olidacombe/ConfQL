@@ -1,8 +1,12 @@
 use confql::graphql_schema;
 
 graphql_schema! {
-    type Query {
+    type Thing {
         name: String!
+    }
+
+    type Query {
+        things: [Thing!]!
     }
 
     schema {
@@ -11,7 +15,7 @@ graphql_schema! {
 }
 
 fn main() {
-    let _ = Query {
+    let _ = Thing {
         name: "douggy".to_owned(),
     };
 }

@@ -8,11 +8,28 @@ use fields::Field;
 
 pub enum Type<'a, T: query::Text<'a>> {
     Object(Object<'a, T>),
+    Query(Object<'a, T>),
 }
 
 pub struct Object<'doc, T: query::Text<'doc>> {
-    name: T::Value,
+    pub name: T::Value,
     fields: Vec<Field<'doc, T>>,
+}
+
+impl<'a, T: query::Text<'a>> From<schema::TypeDefinition<'a, T>> for Object<'a, T> {
+    fn from(def: schema::TypeDefinition<'a, T>) -> Self {
+        use schema::TypeDefinition;
+        match def {
+            TypeDefinition::Object(obj) => {
+                let fields = obj.fields.into_iter().map(Field::from).collect();
+                Self {
+                    name: obj.name,
+                    fields,
+                }
+            }
+            _ => unimplemented! {},
+        }
+    }
 }
 
 impl<'doc, T: query::Text<'doc>> Type<'doc, T> {
@@ -48,7 +65,7 @@ where
                 let merge_lines = obj.fields.iter().map(|f| f.merge_line());
                 quote! {
                     #[derive(Deserialize)]
-                    // #[derive(GraphQLObject)]
+                    #[derive(GraphQLObject)]
                     struct #name {
                     #(#fields),*
                     }
@@ -62,12 +79,21 @@ where
                             Ok(())
                         }
                     }
+                }
+            }
+            Self::Query(obj) => {
+                let name = format_ident!("{}", obj.name.as_ref());
+                let resolvers = obj.fields.iter().map(|f| f.resolver());
+                quote! {
+                    struct #name {}
 
                     #[graphql_object(context = Ctx)]
                     impl #name {
-                        fn thing(context: &Ctx) -> Result<String, DataResolverError> {
-                            Ok("bla".to_owned())
-                        }
+                        #(#resolvers)*
+                        // e.g.
+                        // fn thing(context: &Ctx) -> Result<String, DataResolverError> {
+                        //     Ok("bla".to_owned())
+                        // }
                     }
                 }
             }
