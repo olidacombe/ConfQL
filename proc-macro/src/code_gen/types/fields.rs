@@ -41,11 +41,11 @@ where
         let name = name.as_ref();
         let field_name = format_ident!("{}", name);
         quote! {
-            fn #field_name(context: &Ctx) -> Result<#field_type, DataResolverError> {
+            fn #field_name(context: &Ctx) -> FieldResult<#field_type> {
                 // TODO
                 // TODO
                 // The right context.data_resolver.get or whatever
-                context.data_resolver.get(&[#name])
+                Ok(context.data_resolver.get(&[#name])?)
                 // TODO
                 // TODO
             }

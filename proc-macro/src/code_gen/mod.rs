@@ -2,7 +2,6 @@ use graphql_parser::parse_schema;
 use graphql_parser::{query, schema};
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
-use std::collections::HashMap;
 use std::convert::TryFrom;
 use thiserror::Error;
 
@@ -52,7 +51,7 @@ where
     fn imports(&self) -> TokenStream {
         quote! {
             use data_resolver::{DataPath, DataResolver, DataResolverError, Merge, ResolveValue};
-            use juniper::{Context, GraphQLObject, graphql_object};
+            use juniper::{Context, FieldResult, GraphQLObject, graphql_object};
             use serde::Deserialize;
         }
     }

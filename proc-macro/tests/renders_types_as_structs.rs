@@ -6,7 +6,7 @@ graphql_schema! {
     }
 
     type Query {
-        things: [Thing!]!
+        things: Thing!
     }
 
     schema {
