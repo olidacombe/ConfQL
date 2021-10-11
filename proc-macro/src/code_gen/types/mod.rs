@@ -85,7 +85,7 @@ where
                 let name = format_ident!("{}", obj.name.as_ref());
                 let resolvers = obj.fields.iter().map(|f| f.resolver());
                 quote! {
-                    struct #name {}
+                    struct #name;
 
                     #[graphql_object(context = Ctx)]
                     impl #name {

@@ -62,6 +62,15 @@ where
                 data_resolver: DataResolver
             }
 
+            use std::path::PathBuf;
+            impl From<PathBuf> for Ctx {
+                fn from(p: PathBuf) -> Self {
+                    Self {
+                        data_resolver: p.into()
+                    }
+                }
+            }
+
             impl juniper::Context for Ctx {}
         }
     }
@@ -70,7 +79,7 @@ where
         quote! {
             struct Mutation;
 
-            type Schema = juniper::RootNode<'static, #query_type, Mutation, juniper::EmptySubscription<Context>>;
+            type Schema = juniper::RootNode<'static, #query_type, juniper::EmptyMutation<Ctx>, juniper::EmptySubscription<Ctx>>;
         }
     }
 }

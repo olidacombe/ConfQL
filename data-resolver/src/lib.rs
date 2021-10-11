@@ -71,8 +71,8 @@ impl DataResolver {
 }
 
 impl From<PathBuf> for DataResolver {
-    fn from(path: PathBuf) -> Self {
-        Self { root: path }
+    fn from(root: PathBuf) -> Self {
+        Self { root }
     }
 }
 
