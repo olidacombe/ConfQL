@@ -78,6 +78,10 @@ pub trait ResolveValue {
         Ok(value)
     }
     fn resolve_values(mut data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
+        // TODO probably remove the .values() fn
+        // Instead here list the dir, and resolve at
+        // Dir(./#name) for dirs and File(./#name%.yml)
+        // for normal files ;)
         let mut value = data_path.values();
         if !data_path.done() {
             data_path.descend();
@@ -276,7 +280,7 @@ mod tests {
     }
 
     #[test]
-    fn resolves_nested_objects_from_file_tree() -> Result<()> {
+    fn resolves_nested_list_from_file_tree() -> Result<()> {
         let mocks = TestFiles::new().unwrap();
         mocks
             .file(
@@ -297,6 +301,58 @@ mod tests {
             )?
             .file(
                 "my_list/y.yml",
+                indoc! {"
+                ---
+                id: 2
+                alias: Ali
+            "},
+            )?;
+        let mut v: Query = mocks.resolver().get(&[])?;
+        v.my_list.sort();
+        assert_eq!(
+            v,
+            Query {
+                my_obj: MyObj {
+                    id: 1,
+                    name: "Objy".to_owned()
+                },
+                my_list: vec![
+                    MyOtherObj {
+                        id: 1,
+                        alias: "Obbo".to_owned(),
+                    },
+                    MyOtherObj {
+                        id: 2,
+                        alias: "Ali".to_owned(),
+                    },
+                ]
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_broken_nested_list_from_dir_index_files() -> Result<()> {
+        let mocks = TestFiles::new().unwrap();
+        mocks
+            .file(
+                "my_obj/index.yml",
+                indoc! {"
+                ---
+                id: 1
+                name: Objy
+            "},
+            )?
+            .file(
+                "my_list/x/index.yml",
+                indoc! {"
+                ---
+                id: 1
+                alias: Obbo
+            "},
+            )?
+            .file(
+                "my_list/y/index.yml",
                 indoc! {"
                 ---
                 id: 2
