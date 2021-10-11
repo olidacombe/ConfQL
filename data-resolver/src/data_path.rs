@@ -58,7 +58,7 @@ impl<'a> DataPath<'a> {
             path: path.into(),
         }
     }
-    pub fn next(&mut self) -> &mut Self {
+    pub fn descend(&mut self) -> &mut Self {
         use Level::{Dir, File};
         match &self.level {
             File => {
@@ -226,7 +226,7 @@ mod tests {
 	            2
 	        "},
             )?;
-        let v = mocks.data_path(&["a"]).next().next().values();
+        let v = mocks.data_path(&["a"]).descend().descend().values();
         let mut v: Vec<u32> = serde_yaml::from_value(v)?;
         v.sort();
         assert_eq!(v, vec![1, 2]);

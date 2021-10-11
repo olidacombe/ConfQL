@@ -72,7 +72,7 @@ pub trait ResolveValue {
         if data_path.done() {
             Self::merge_properties(&mut value, &data_path)?;
         } else {
-            data_path.next();
+            data_path.descend();
             value.merge(Self::resolve_value(data_path)?)?;
         }
         Ok(value)
@@ -80,7 +80,7 @@ pub trait ResolveValue {
     fn resolve_values(mut data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
         let mut value = data_path.values();
         if !data_path.done() {
-            data_path.next();
+            data_path.descend();
             value.merge(Self::resolve_values(data_path)?)?;
         }
         Ok(value)
