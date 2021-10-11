@@ -132,7 +132,7 @@ impl Merge for serde_yaml::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anyhow::Result;
+    use color_eyre::Result;
     use indoc::indoc;
     use test_files::TestFiles;
     use test_utils::yaml;

@@ -1,0 +1,18 @@
+[package]
+name = "data-resolver"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+itertools = "0.10.1"
+serde = { version = "1.0.130", features = ["derive"] }
+serde_yaml = "0.8.21"
+thiserror = "1.0.29"
+
+[dev-dependencies]
+color-eyre = "0.5.11"
+indoc = "1.0.3"
+test-files = { path = "../test-files" }
+test-utils = { path = "../test-utils" }

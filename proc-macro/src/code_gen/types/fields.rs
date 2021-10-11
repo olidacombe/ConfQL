@@ -19,6 +19,40 @@ impl<'a, T: query::Text<'a>> From<schema::Field<'a, T>> for Field<'a, T> {
     }
 }
 
+impl<'a, T> Field<'a, T>
+where
+    T: query::Text<'a>,
+    T: Clone,
+{
+    pub fn merge_line(&self) -> TokenStream {
+        let Field { name, field_type } = self;
+        let name = name.as_ref();
+        let resolver = match field_type.is_list() {
+            false => format_ident!("resolve_value"),
+            true => format_ident!("resolve_values"),
+        };
+        let ty = field_type.inner_tokens();
+        quote! {
+            value.merge_at(#name, #ty::#resolver(data_path.join(#name))?)?;
+        }
+    }
+    pub fn resolver(&self) -> TokenStream {
+        let Self { name, field_type } = self;
+        let name = name.as_ref();
+        let field_name = format_ident!("{}", name);
+        quote! {
+            fn #field_name(context: &Ctx) -> FieldResult<#field_type> {
+                // TODO
+                // TODO
+                // The right context.data_resolver.get or whatever
+                Ok(context.data_resolver.get(&[#name])?)
+                // TODO
+                // TODO
+            }
+        }
+    }
+}
+
 impl<'a, T> ToTokens for Field<'a, T>
 where
     T: query::Text<'a>,
@@ -43,11 +77,7 @@ where
 {
     fn inner_tokens(&self) -> TokenStream {
         use query::Type::{ListType, NamedType, NonNullType};
-        let ty = match self {
-            Self::Nullable(ty) => ty,
-            Self::NonNullable(ty) => ty,
-        };
-        match ty {
+        match self.schema_type() {
             NamedType(val) => {
                 let val = format_ident!("{}", val.as_ref());
                 quote! {#val}
@@ -58,6 +88,23 @@ where
             }
             NonNullType(_) => unreachable!(),
         }
+    }
+}
+
+impl<'a, T> FieldType<'a, T>
+where
+    T: query::Text<'a>,
+{
+    fn is_list(&self) -> bool {
+        if let query::Type::ListType(_) = self.schema_type() {
+            return true;
+        }
+        false
+    }
+    fn schema_type(&self) -> &schema::Type<'a, T> {
+        use FieldType::{NonNullable, Nullable};
+        let (Nullable(ty) | NonNullable(ty)) = self;
+        ty
     }
 }
 

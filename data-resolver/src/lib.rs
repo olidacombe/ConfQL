@@ -1,11 +1,11 @@
 use serde::Deserialize;
-use std::path::Path;
+use std::path::PathBuf;
 use thiserror::Error;
 
 mod data_path;
-use data_path::DataPath;
+pub use data_path::DataPath;
 mod values;
-use values::Merge;
+pub use values::Merge;
 
 #[derive(Error, Debug)]
 pub enum DataResolverError {
@@ -28,11 +28,11 @@ pub enum DataResolverError {
     IOError(#[from] std::io::Error),
 }
 
-pub struct DataResolver<'a> {
-    root: &'a Path,
+pub struct DataResolver {
+    root: PathBuf,
 }
 
-impl<'a> DataResolver<'a> {
+impl DataResolver {
     // pub fn get_non_nullable<T>(&self, address: &[&str]) -> Result<T, DataResolverError>
     // where
     //     T: for<'de> Deserialize<'de>,
@@ -54,7 +54,7 @@ impl<'a> DataResolver<'a> {
         T: for<'de> Deserialize<'de>,
         T: ResolveValue,
     {
-        let data_path = DataPath::new(self.root, address);
+        let data_path = DataPath::new(&self.root, address);
         let value = T::resolve_value(data_path)?;
         Ok(serde_yaml::from_value(value)?)
     }
@@ -70,9 +70,9 @@ impl<'a> DataResolver<'a> {
     // }
 }
 
-impl<'a> From<&'a Path> for DataResolver<'a> {
-    fn from(path: &'a Path) -> Self {
-        Self { root: path }
+impl From<PathBuf> for DataResolver {
+    fn from(root: PathBuf) -> Self {
+        Self { root }
     }
 }
 
@@ -175,13 +175,15 @@ mod tests {
         }
     }
 
-    trait GetResolver<'a> {
-        fn resolver(&'a self) -> DataResolver<'a>;
+    trait GetResolver {
+        fn resolver(&self) -> DataResolver;
     }
 
-    impl<'a> GetResolver<'a> for TestFiles {
-        fn resolver(&'a self) -> DataResolver<'a> {
-            DataResolver { root: self.path() }
+    impl GetResolver for TestFiles {
+        fn resolver(&self) -> DataResolver {
+            DataResolver {
+                root: self.path().to_path_buf(),
+            }
         }
     }
 
