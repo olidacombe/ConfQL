@@ -206,8 +206,7 @@ mod tests {
         Ok(())
     }
 
-    // TODO
-    // #[test]
+    #[test]
     fn resolves_object_from_broken_files() -> Result<()> {
         let mocks = TestFiles::new().unwrap();
         mocks
@@ -216,7 +215,6 @@ mod tests {
                 indoc! {"
                 ---
                 1
-                name: Objy
             "},
             )?
             .file(

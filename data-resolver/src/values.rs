@@ -1,6 +1,6 @@
 use itertools::Itertools;
 use serde_yaml::Value;
-use std::path::PathBuf;
+use std::path::Path;
 
 use super::DataResolverError;
 
@@ -19,7 +19,7 @@ pub fn take_sub_value_at_address(
         .map(|v| std::mem::replace(v, Value::Null));
 }
 
-pub fn value_from_file(path: &PathBuf) -> Result<Value, DataResolverError> {
+pub fn value_from_file(path: &Path) -> Result<Value, DataResolverError> {
     let file = std::fs::File::open(&path)?;
     let value = serde_yaml::from_reader::<_, Value>(file)?;
     Ok(value)
