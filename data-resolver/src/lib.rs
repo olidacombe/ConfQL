@@ -33,22 +33,6 @@ pub struct DataResolver {
 }
 
 impl DataResolver {
-    // pub fn get_non_nullable<T>(&self, address: &[&str]) -> Result<T, DataResolverError>
-    // where
-    //     T: for<'de> Deserialize<'de>,
-    // {
-    //     self.get_nullable(address)?
-    //         .ok_or(DataResolverError::DataNotFound)
-    // }
-
-    // pub fn get_non_nullable_list<T>(&self, address: &[&str]) -> Result<Vec<T>, DataResolverError>
-    // where
-    //     T: for<'de> Deserialize<'de>,
-    // {
-    //     self.get_nullable_list(address)?
-    //         .ok_or(DataResolverError::DataNotFound)
-    // }
-
     pub fn get<T>(&self, address: &[&str]) -> Result<T, DataResolverError>
     where
         T: for<'de> Deserialize<'de>,
@@ -59,15 +43,15 @@ impl DataResolver {
         Ok(serde_yaml::from_value(value)?)
     }
 
-    // pub fn get_nullable_list<T>(
-    //     &self,
-    //     address: &[&str],
-    // ) -> Result<Option<Vec<T>>, DataResolverError>
-    // where
-    //     T: for<'de> Deserialize<'de>,
-    // {
-    //     Err(DataResolverError::DataNotFound)
-    // }
+    pub fn get_list<T>(&self, address: &[&str]) -> Result<T, DataResolverError>
+    where
+        T: for<'de> Deserialize<'de>,
+        T: ResolveValue,
+    {
+        let data_path = DataPath::new(&self.root, address);
+        let value = T::resolve_values(data_path)?;
+        Ok(serde_yaml::from_value(value)?)
+    }
 }
 
 impl From<PathBuf> for DataResolver {
@@ -117,9 +101,6 @@ mod tests {
     use color_eyre::Result;
     use indoc::indoc;
     use test_files::TestFiles;
-
-    // TODO macro generates the below automatically for
-    // such types
 
     #[derive(Debug, Deserialize, PartialEq)]
     struct MyObj {
@@ -225,6 +206,8 @@ mod tests {
         Ok(())
     }
 
+    // TODO
+    // #[test]
     fn resolves_object_from_broken_files() -> Result<()> {
         let mocks = TestFiles::new().unwrap();
         mocks

@@ -2,7 +2,7 @@ use std::fs;
 use std::iter;
 use std::path::PathBuf;
 
-use super::values::{take_sub_value_at_address, value_from_file, Merge};
+use super::values::{take_sub_value_at_address, value_from_file};
 use super::DataResolverError;
 
 enum Level {

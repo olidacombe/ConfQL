@@ -40,14 +40,24 @@ where
         let Self { name, field_type } = self;
         let name = name.as_ref();
         let field_name = format_ident!("{}", name);
+        use FieldType::{NonNullable, Nullable};
+        let getter = match (&self.field_type, self.field_type.is_list()) {
+            (Nullable(_), false) => quote! {
+                context.data_resolver.get(&[#name]).ok()
+            },
+            (Nullable(_), true) => quote! {
+                context.data_resolver.get(&[#name]).ok()
+            },
+            (NonNullable(_), false) => quote! {
+                Ok(context.data_resolver.get(&[#name])?)
+            },
+            (NonNullable(_), true) => quote! {
+                Ok(context.data_resolver.get(&[#name])?)
+            },
+        };
         quote! {
             fn #field_name(context: &Ctx) -> FieldResult<#field_type> {
-                // TODO
-                // TODO
-                // The right context.data_resolver.get or whatever
-                Ok(context.data_resolver.get(&[#name])?)
-                // TODO
-                // TODO
+                #getter
             }
         }
     }
