@@ -27,10 +27,7 @@ where
     pub fn merge_line(&self) -> TokenStream {
         let Field { name, field_type } = self;
         let name = name.as_ref();
-        let resolver = match field_type.is_list() {
-            false => format_ident!("resolve_value"),
-            true => format_ident!("resolve_values"),
-        };
+        let resolver = format_ident!("resolve_value");
         let ty = field_type.inner_tokens();
         quote! {
             value.merge_at(#name, #ty::#resolver(data_path.join(#name))?)?;
@@ -41,17 +38,11 @@ where
         let name = name.as_ref();
         let field_name = format_ident!("{}", name);
         use FieldType::{NonNullable, Nullable};
-        let getter = match (&self.field_type, self.field_type.is_list()) {
-            (Nullable(_), false) => quote! {
+        let getter = match &self.field_type {
+            Nullable(_) => quote! {
                 context.data_resolver.get(&[#name]).ok()
             },
-            (Nullable(_), true) => quote! {
-                context.data_resolver.get(&[#name]).ok()
-            },
-            (NonNullable(_), false) => quote! {
-                Ok(context.data_resolver.get(&[#name])?)
-            },
-            (NonNullable(_), true) => quote! {
+            NonNullable(_) => quote! {
                 Ok(context.data_resolver.get(&[#name])?)
             },
         };
@@ -105,12 +96,6 @@ impl<'a, T> FieldType<'a, T>
 where
     T: query::Text<'a>,
 {
-    fn is_list(&self) -> bool {
-        if let query::Type::ListType(_) = self.schema_type() {
-            return true;
-        }
-        false
-    }
     fn schema_type(&self) -> &schema::Type<'a, T> {
         use FieldType::{NonNullable, Nullable};
         let (Nullable(ty) | NonNullable(ty)) = self;

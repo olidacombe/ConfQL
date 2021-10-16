@@ -42,16 +42,6 @@ impl DataResolver {
         let value = T::resolve_value(data_path)?;
         Ok(serde_yaml::from_value(value)?)
     }
-
-    pub fn get_list<T>(&self, address: &[&str]) -> Result<T, DataResolverError>
-    where
-        T: for<'de> Deserialize<'de>,
-        T: ResolveValue,
-    {
-        let data_path = DataPath::new(&self.root, address);
-        let value = T::resolve_values(data_path)?;
-        Ok(serde_yaml::from_value(value)?)
-    }
 }
 
 impl From<PathBuf> for DataResolver {
@@ -77,18 +67,6 @@ pub trait ResolveValue {
         }
         Ok(value)
     }
-    fn resolve_values(mut data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
-        // TODO probably remove the .values() fn
-        // Instead here list the dir, and resolve at
-        // Dir(./#name) for dirs and File(./#name%.yml)
-        // for normal files ;)
-        let mut value = data_path.values();
-        if !data_path.done() {
-            data_path.descend();
-            value.merge(Self::resolve_values(data_path)?)?;
-        }
-        Ok(value)
-    }
 }
 
 impl ResolveValue for bool {}
@@ -97,6 +75,21 @@ impl ResolveValue for f64 {}
 // impl ResolveValue for juniper::ID {}
 impl ResolveValue for String {}
 impl ResolveValue for u32 {}
+impl<T: ResolveValue> ResolveValue for Vec<T> {
+    fn merge_properties(
+        value: &mut serde_yaml::Value,
+        data_path: &DataPath,
+    ) -> Result<(), DataResolverError> {
+        value.merge(
+            data_path
+                .sub_paths()
+                .into_iter()
+                .filter_map(|dp| T::resolve_value(dp).ok())
+                .collect(),
+        )?;
+        Ok(())
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -154,17 +147,21 @@ mod tests {
             value.merge_at("my_obj", MyObj::resolve_value(data_path.join("my_obj"))?)?;
             value.merge_at(
                 "my_list",
-                MyOtherObj::resolve_values(data_path.join("my_list"))?,
+                MyOtherObj::resolve_value(data_path.join("my_list"))?,
             )?;
             Ok(())
         }
     }
 
-    trait GetResolver {
+    trait GetResolver<'a> {
+        fn data_path(&self, address: &'a [&'a str]) -> DataPath<'a>;
         fn resolver(&self) -> DataResolver;
     }
 
-    impl GetResolver for TestFiles {
+    impl<'a> GetResolver<'a> for TestFiles {
+        fn data_path(&self, address: &'a [&'a str]) -> DataPath<'a> {
+            DataPath::new(self.path().to_path_buf(), address)
+        }
         fn resolver(&self) -> DataResolver {
             DataResolver {
                 root: self.path().to_path_buf(),
@@ -185,6 +182,33 @@ mod tests {
         )?;
         let v: u32 = mocks.resolver().get(&[])?;
         assert_eq!(v, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_list_num_accross_files() -> Result<()> {
+        let mocks = TestFiles::new().unwrap();
+        // See above comment about in future chosing not this behaviour
+        mocks
+            .file(
+                "a.yml",
+                indoc! {"
+	            ---
+	            1
+	        "},
+            )?
+            .file(
+                "b.yml",
+                indoc! {"
+	            ---
+	            2
+	        "},
+            )?;
+
+        let mut v: Vec<u32> = mocks.resolver().get(&[])?;
+        // we get not guarantee on order with file iterator
+        v.sort();
+        assert_eq!(v, vec![1, 2]);
         Ok(())
     }
 

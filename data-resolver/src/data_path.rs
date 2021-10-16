@@ -27,7 +27,7 @@ impl<'a> DataPath<'a> {
     fn file(&self) -> PathBuf {
         self.path.with_extension("yml")
     }
-    fn files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
+    pub fn files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
         match fs::read_dir(&self.path) {
             Ok(reader) => Box::new(
                 reader
@@ -37,6 +37,18 @@ impl<'a> DataPath<'a> {
             _ => Box::new(iter::empty::<PathBuf>()),
         }
     }
+    pub fn sub_paths(&self) -> Vec<Self> {
+        fs::read_dir(&self.path).map_or_else(
+            |_| vec![],
+            |reader| {
+                reader
+                    .filter_map(|dir_entry| dir_entry.ok())
+                    .map(|dir_entry| dir_entry.file_name())
+                    .map(|p| self.join(p))
+                    .collect()
+            },
+        )
+    }
     fn get_value(&self, path: &Path) -> Result<serde_yaml::Value, DataResolverError> {
         let mut value = value_from_file(path)?;
         take_sub_value_at_address(&mut value, self.address)
@@ -44,7 +56,7 @@ impl<'a> DataPath<'a> {
     fn index(&self) -> PathBuf {
         self.path.join("index.yml")
     }
-    pub fn join(&self, tail: &'a str) -> Self {
+    pub fn join<P: AsRef<Path>>(&self, tail: P) -> Self {
         Self {
             level: Level::File,
             path: self.path.join(tail),
@@ -81,15 +93,6 @@ impl<'a> DataPath<'a> {
             File => self.get_value(&self.file()),
         }
         .unwrap_or(serde_yaml::Value::Null)
-    }
-    pub fn values(&self) -> serde_yaml::Value {
-        if self.done() {
-            self.files()
-                .filter_map(|f| self.get_value(&f).ok())
-                .collect()
-        } else {
-            self.value()
-        }
     }
 }
 
@@ -143,52 +146,52 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn resolves_list_num_at_root() -> Result<()> {
-        let mocks = TestFiles::new().unwrap();
-        // This is a bit of a funny case.  Later we'll
-        // provide a directive to escape hatch array at
-        // root behaviour to choose we we try merging
-        // files into array, or reading index file as
-        // array.
-        mocks.file(
-            "index.yml",
-            indoc! {"
-	            ---
-	            1
-	        "},
-        )?;
-        let v = mocks.data_path(&[]).values();
-        assert_eq!(v, yaml! {"[1]"});
-        Ok(())
-    }
+    // #[test]
+    // fn resolves_list_num_at_root() -> Result<()> {
+    //     let mocks = TestFiles::new().unwrap();
+    //     // This is a bit of a funny case.  Later we'll
+    //     // provide a directive to escape hatch array at
+    //     // root behaviour to choose we we try merging
+    //     // files into array, or reading index file as
+    //     // array.
+    //     mocks.file(
+    //         "index.yml",
+    //         indoc! {"
+    //             ---
+    //             1
+    //         "},
+    //     )?;
+    //     let v = mocks.data_path(&[]).value();
+    //     assert_eq!(v, yaml! {"[1]"});
+    //     Ok(())
+    // }
 
-    #[test]
-    fn resolves_non_nullable_list_int_at_root_files() -> Result<()> {
-        let mocks = TestFiles::new().unwrap();
-        // See above comment about in future chosing not this behaviour
-        mocks
-            .file(
-                "a.yml",
-                indoc! {"
-	            ---
-	            1
-	        "},
-            )?
-            .file(
-                "b.yml",
-                indoc! {"
-	            ---
-	            2
-	        "},
-            )?;
-        let v = mocks.data_path(&[]).values();
-        // we get not guarantee on order with file iterator
-        let mut v: Vec<u32> = serde_yaml::from_value(v)?;
-        v.sort();
-        assert_eq!(v, vec![1, 2]);
-        Ok(())
-    }
+    // #[test]
+    // fn resolves_non_nullable_list_int_at_root_files() -> Result<()> {
+    //     let mocks = TestFiles::new().unwrap();
+    //     // See above comment about in future chosing not this behaviour
+    //     mocks
+    //         .file(
+    //             "a.yml",
+    //             indoc! {"
+    //             ---
+    //             1
+    //         "},
+    //         )?
+    //         .file(
+    //             "b.yml",
+    //             indoc! {"
+    //             ---
+    //             2
+    //         "},
+    //         )?;
+    //     let v = mocks.data_path(&[]).value();
+    //     // we get not guarantee on order with file iterator
+    //     let mut v: Vec<u32> = serde_yaml::from_value(v)?;
+    //     v.sort();
+    //     assert_eq!(v, vec![1, 2]);
+    //     Ok(())
+    // }
 
     #[test]
     fn resolves_list_num_at_index() -> Result<()> {
@@ -203,33 +206,8 @@ mod tests {
 	            - 6
 	        "},
         )?;
-        let v = mocks.data_path(&["a"]).values();
+        let v = mocks.data_path(&["a"]).value();
         assert_eq!(v, yaml! {"[4, 5, 6]"});
-        Ok(())
-    }
-
-    #[test]
-    fn resolves_list_num_at_bottom_files() -> Result<()> {
-        let mocks = TestFiles::new().unwrap();
-        mocks
-            .file(
-                "a/b.yml",
-                indoc! {"
-	            ---
-	            1
-	        "},
-            )?
-            .file(
-                "a/c.yml",
-                indoc! {"
-	            ---
-	            2
-	        "},
-            )?;
-        let v = mocks.data_path(&["a"]).descend().descend().values();
-        let mut v: Vec<u32> = serde_yaml::from_value(v)?;
-        v.sort();
-        assert_eq!(v, vec![1, 2]);
         Ok(())
     }
 }
