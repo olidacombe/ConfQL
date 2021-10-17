@@ -160,7 +160,7 @@ mod tests {
             if let Ok(my_obj) = MyObj::resolve_value(data_path.join("my_obj")) {
                 value.merge_at("my_obj", my_obj)?;
             }
-            if let Ok(my_list) = MyOtherObj::resolve_value(data_path.join("my_list")) {
+            if let Ok(my_list) = Vec::<MyOtherObj>::resolve_value(data_path.join("my_list")) {
                 value.merge_at("my_list", my_list)?;
             }
             Ok(())
