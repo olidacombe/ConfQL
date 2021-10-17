@@ -5,13 +5,11 @@ use std::path::{Path, PathBuf};
 use super::values::{take_sub_value_at_address, value_from_file};
 use super::DataResolverError;
 
-#[derive(Debug)]
 enum Level {
     Dir,
     File,
 }
 
-#[derive(Debug)]
 pub struct DataPath<'a> {
     level: Level,
     path: PathBuf,
@@ -148,53 +146,6 @@ mod tests {
         assert_eq!(v, yaml! {"3"});
         Ok(())
     }
-
-    // #[test]
-    // fn resolves_list_num_at_root() -> Result<()> {
-    //     let mocks = TestFiles::new().unwrap();
-    //     // This is a bit of a funny case.  Later we'll
-    //     // provide a directive to escape hatch array at
-    //     // root behaviour to choose we we try merging
-    //     // files into array, or reading index file as
-    //     // array.
-    //     mocks.file(
-    //         "index.yml",
-    //         indoc! {"
-    //             ---
-    //             1
-    //         "},
-    //     )?;
-    //     let v = mocks.data_path(&[]).value();
-    //     assert_eq!(v, yaml! {"[1]"});
-    //     Ok(())
-    // }
-
-    // #[test]
-    // fn resolves_non_nullable_list_int_at_root_files() -> Result<()> {
-    //     let mocks = TestFiles::new().unwrap();
-    //     // See above comment about in future chosing not this behaviour
-    //     mocks
-    //         .file(
-    //             "a.yml",
-    //             indoc! {"
-    //             ---
-    //             1
-    //         "},
-    //         )?
-    //         .file(
-    //             "b.yml",
-    //             indoc! {"
-    //             ---
-    //             2
-    //         "},
-    //         )?;
-    //     let v = mocks.data_path(&[]).value();
-    //     // we get not guarantee on order with file iterator
-    //     let mut v: Vec<u32> = serde_yaml::from_value(v)?;
-    //     v.sort();
-    //     assert_eq!(v, vec![1, 2]);
-    //     Ok(())
-    // }
 
     #[test]
     fn resolves_list_num_at_index() -> Result<()> {

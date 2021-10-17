@@ -58,8 +58,6 @@ pub trait ResolveValue {
         Ok(())
     }
     fn resolve_value(data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
-        // we die early here when index.yml doesn't exist but some sub dir
-        // that is relevant still does
         let mut value = data_path.value().unwrap_or(serde_yaml::Value::Null);
         if data_path.done() {
             Self::merge_properties(&mut value, &data_path)?;
@@ -184,7 +182,7 @@ mod tests {
     }
 
     #[test]
-    fn resolve_num() -> Result<()> {
+    fn resolves_num() -> Result<()> {
         color_eyre::install()?;
         let mocks = TestFiles::new().unwrap();
         mocks.file(
@@ -318,7 +316,7 @@ mod tests {
     }
 
     #[test]
-    fn resolves_nested_list_from_file_tree() -> Result<()> {
+    fn resolves_nested_list_from_files() -> Result<()> {
         let mocks = TestFiles::new().unwrap();
         mocks
             .file(
@@ -395,6 +393,70 @@ mod tests {
                 ---
                 id: 2
                 alias: Ali
+            "},
+            )?;
+        let mut v: Query = mocks.resolver().get(&[])?;
+        v.my_list.sort();
+        assert_eq!(
+            v,
+            Query {
+                my_obj: MyObj {
+                    id: 1,
+                    name: "Objy".to_owned()
+                },
+                my_list: vec![
+                    MyOtherObj {
+                        id: 1,
+                        alias: "Obbo".to_owned(),
+                    },
+                    MyOtherObj {
+                        id: 2,
+                        alias: "Ali".to_owned(),
+                    },
+                ]
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_broken_nested_list_from_dir_tree() -> Result<()> {
+        let mocks = TestFiles::new().unwrap();
+        mocks
+            .file(
+                "my_obj/index.yml",
+                indoc! {"
+                ---
+                id: 1
+                name: Objy
+            "},
+            )?
+            .file(
+                "my_list/x/index.yml",
+                indoc! {"
+                ---
+                id: 1
+            "},
+            )?
+            .file(
+                "my_list/x/alias.yml",
+                indoc! {"
+                ---
+                Obbo
+            "},
+            )?
+            .file(
+                "my_list/y/alias.yml",
+                indoc! {"
+                ---
+                Ali
+            "},
+            )?
+            .file(
+                "my_list/y/id.yml",
+                indoc! {"
+                ---
+                2
             "},
             )?;
         let mut v: Query = mocks.resolver().get(&[])?;
