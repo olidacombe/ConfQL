@@ -27,10 +27,11 @@ where
     pub fn merge_line(&self) -> TokenStream {
         let Field { name, field_type } = self;
         let name = name.as_ref();
-        let resolver = format_ident!("resolve_value");
         let ty = field_type.inner_tokens();
         quote! {
-            value.merge_at(#name, #ty::#resolver(data_path.join(#name))?)?;
+            if let Ok(v) = <#ty>::resolve_value(data_path.join(#name)) {
+                value.merge_at(#name, v)?;
+            }
         }
     }
     pub fn resolver(&self) -> TokenStream {
