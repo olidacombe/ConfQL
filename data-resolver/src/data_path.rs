@@ -5,11 +5,13 @@ use std::path::{Path, PathBuf};
 use super::values::{take_sub_value_at_address, value_from_file};
 use super::DataResolverError;
 
+#[derive(Debug)]
 enum Level {
     Dir,
     File,
 }
 
+#[derive(Debug)]
 pub struct DataPath<'a> {
     level: Level,
     path: PathBuf,
@@ -70,10 +72,13 @@ impl<'a> DataPath<'a> {
             path: path.into(),
         }
     }
-    pub fn descend(&mut self) -> &mut Self {
+    pub fn descend(mut self) -> Option<Self> {
         use Level::{Dir, File};
         match &self.level {
             File => {
+                if !self.path.is_dir() {
+                    return None;
+                }
                 self.level = Dir;
             }
             Dir => {
@@ -84,15 +89,13 @@ impl<'a> DataPath<'a> {
                 }
             }
         }
-        self
+        Some(self)
     }
-    pub fn value(&self) -> serde_yaml::Value {
-        use Level::{Dir, File};
+    pub fn value(&self) -> Result<serde_yaml::Value, DataResolverError> {
         match &self.level {
-            Dir => self.get_value(&self.index()),
-            File => self.get_value(&self.file()),
+            Level::Dir => self.get_value(&self.index()),
+            Level::File => self.get_value(&self.file()),
         }
-        .unwrap_or(serde_yaml::Value::Null)
     }
 }
 
@@ -124,7 +127,7 @@ mod tests {
                 3
             "},
         )?;
-        let v = mocks.data_path(&[]).value();
+        let v = mocks.data_path(&[]).value()?;
         assert_eq!(v, yaml! {"3"});
         Ok(())
     }
@@ -141,7 +144,7 @@ mod tests {
 	                    c: 3
 	        "},
         )?;
-        let v = mocks.data_path(&["a", "b", "c"]).value();
+        let v = mocks.data_path(&["a", "b", "c"]).value()?;
         assert_eq!(v, yaml! {"3"});
         Ok(())
     }
@@ -206,7 +209,7 @@ mod tests {
 	            - 6
 	        "},
         )?;
-        let v = mocks.data_path(&["a"]).value();
+        let v = mocks.data_path(&["a"]).value()?;
         assert_eq!(v, yaml! {"[4, 5, 6]"});
         Ok(())
     }

@@ -57,13 +57,18 @@ pub trait ResolveValue {
     ) -> Result<(), DataResolverError> {
         Ok(())
     }
-    fn resolve_value(mut data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
-        let mut value = data_path.value();
+    fn resolve_value(data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
+        // we die early here when index.yml doesn't exist but some sub dir
+        // that is relevant still does
+        let mut value = data_path.value().unwrap_or(serde_yaml::Value::Null);
         if data_path.done() {
             Self::merge_properties(&mut value, &data_path)?;
         } else {
-            data_path.descend();
-            value.merge(Self::resolve_value(data_path)?)?;
+            if let Some(data_path) = data_path.descend() {
+                if let Ok(mergee) = Self::resolve_value(data_path) {
+                    value.merge(mergee)?;
+                }
+            }
         }
         Ok(value)
     }
@@ -110,8 +115,12 @@ mod tests {
             value: &mut serde_yaml::Value,
             data_path: &DataPath,
         ) -> Result<(), DataResolverError> {
-            value.merge_at("id", u32::resolve_value(data_path.join("id"))?)?;
-            value.merge_at("name", String::resolve_value(data_path.join("name"))?)?;
+            if let Ok(id) = u32::resolve_value(data_path.join("id")) {
+                value.merge_at("id", id)?;
+            }
+            if let Ok(name) = String::resolve_value(data_path.join("name")) {
+                value.merge_at("name", name)?;
+            }
             Ok(())
         }
     }
@@ -127,8 +136,12 @@ mod tests {
             value: &mut serde_yaml::Value,
             data_path: &DataPath,
         ) -> Result<(), DataResolverError> {
-            value.merge_at("id", u32::resolve_value(data_path.join("id"))?)?;
-            value.merge_at("alias", String::resolve_value(data_path.join("alias"))?)?;
+            if let Ok(id) = u32::resolve_value(data_path.join("id")) {
+                value.merge_at("id", id)?;
+            }
+            if let Ok(alias) = String::resolve_value(data_path.join("alias")) {
+                value.merge_at("alias", alias)?;
+            }
             Ok(())
         }
     }
@@ -144,11 +157,12 @@ mod tests {
             value: &mut serde_yaml::Value,
             data_path: &DataPath,
         ) -> Result<(), DataResolverError> {
-            value.merge_at("my_obj", MyObj::resolve_value(data_path.join("my_obj"))?)?;
-            value.merge_at(
-                "my_list",
-                MyOtherObj::resolve_value(data_path.join("my_list"))?,
-            )?;
+            if let Ok(my_obj) = MyObj::resolve_value(data_path.join("my_obj")) {
+                value.merge_at("my_obj", my_obj)?;
+            }
+            if let Ok(my_list) = MyOtherObj::resolve_value(data_path.join("my_list")) {
+                value.merge_at("my_list", my_list)?;
+            }
             Ok(())
         }
     }
