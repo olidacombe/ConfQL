@@ -1,3 +1,4 @@
+use juniper::ID;
 use serde::Deserialize;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -33,22 +34,6 @@ pub struct DataResolver {
 }
 
 impl DataResolver {
-    // pub fn get_non_nullable<T>(&self, address: &[&str]) -> Result<T, DataResolverError>
-    // where
-    //     T: for<'de> Deserialize<'de>,
-    // {
-    //     self.get_nullable(address)?
-    //         .ok_or(DataResolverError::DataNotFound)
-    // }
-
-    // pub fn get_non_nullable_list<T>(&self, address: &[&str]) -> Result<Vec<T>, DataResolverError>
-    // where
-    //     T: for<'de> Deserialize<'de>,
-    // {
-    //     self.get_nullable_list(address)?
-    //         .ok_or(DataResolverError::DataNotFound)
-    // }
-
     pub fn get<T>(&self, address: &[&str]) -> Result<T, DataResolverError>
     where
         T: for<'de> Deserialize<'de>,
@@ -58,16 +43,6 @@ impl DataResolver {
         let value = T::resolve_value(data_path)?;
         Ok(serde_yaml::from_value(value)?)
     }
-
-    // pub fn get_nullable_list<T>(
-    //     &self,
-    //     address: &[&str],
-    // ) -> Result<Option<Vec<T>>, DataResolverError>
-    // where
-    //     T: for<'de> Deserialize<'de>,
-    // {
-    //     Err(DataResolverError::DataNotFound)
-    // }
 }
 
 impl From<PathBuf> for DataResolver {
@@ -83,21 +58,16 @@ pub trait ResolveValue {
     ) -> Result<(), DataResolverError> {
         Ok(())
     }
-    fn resolve_value(mut data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
-        let mut value = data_path.value();
+    fn resolve_value(data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
+        let mut value = data_path.value().unwrap_or(serde_yaml::Value::Null);
         if data_path.done() {
             Self::merge_properties(&mut value, &data_path)?;
         } else {
-            data_path.next();
-            value.merge(Self::resolve_value(data_path)?)?;
-        }
-        Ok(value)
-    }
-    fn resolve_values(mut data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
-        let mut value = data_path.values();
-        if !data_path.done() {
-            data_path.next();
-            value.merge(Self::resolve_values(data_path)?)?;
+            if let Some(data_path) = data_path.descend() {
+                if let Ok(mergee) = Self::resolve_value(data_path) {
+                    value.merge(mergee)?;
+                }
+            }
         }
         Ok(value)
     }
@@ -105,10 +75,29 @@ pub trait ResolveValue {
 
 impl ResolveValue for bool {}
 impl ResolveValue for f64 {}
-// TODO?
-// impl ResolveValue for juniper::ID {}
+impl ResolveValue for ID {}
 impl ResolveValue for String {}
-impl ResolveValue for u32 {}
+impl ResolveValue for i32 {}
+impl<T: ResolveValue> ResolveValue for Option<T> {
+    fn resolve_value(data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
+        T::resolve_value(data_path).or(Ok(serde_yaml::Value::Null))
+    }
+}
+impl<T: ResolveValue> ResolveValue for Vec<T> {
+    fn merge_properties(
+        value: &mut serde_yaml::Value,
+        data_path: &DataPath,
+    ) -> Result<(), DataResolverError> {
+        value.merge(
+            data_path
+                .sub_paths()
+                .into_iter()
+                .filter_map(|dp| T::resolve_value(dp).ok())
+                .collect(),
+        )?;
+        Ok(())
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -118,12 +107,9 @@ mod tests {
     use indoc::indoc;
     use test_files::TestFiles;
 
-    // TODO macro generates the below automatically for
-    // such types
-
     #[derive(Debug, Deserialize, PartialEq)]
     struct MyObj {
-        id: u32,
+        id: i32,
         name: String,
     }
 
@@ -132,15 +118,19 @@ mod tests {
             value: &mut serde_yaml::Value,
             data_path: &DataPath,
         ) -> Result<(), DataResolverError> {
-            value.merge_at("id", u32::resolve_value(data_path.join("id"))?)?;
-            value.merge_at("name", String::resolve_value(data_path.join("name"))?)?;
+            if let Ok(id) = i32::resolve_value(data_path.join("id")) {
+                value.merge_at("id", id)?;
+            }
+            if let Ok(name) = String::resolve_value(data_path.join("name")) {
+                value.merge_at("name", name)?;
+            }
             Ok(())
         }
     }
 
     #[derive(Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd)]
     struct MyOtherObj {
-        id: u32,
+        id: i32,
         alias: String,
     }
 
@@ -149,8 +139,12 @@ mod tests {
             value: &mut serde_yaml::Value,
             data_path: &DataPath,
         ) -> Result<(), DataResolverError> {
-            value.merge_at("id", u32::resolve_value(data_path.join("id"))?)?;
-            value.merge_at("alias", String::resolve_value(data_path.join("alias"))?)?;
+            if let Ok(id) = i32::resolve_value(data_path.join("id")) {
+                value.merge_at("id", id)?;
+            }
+            if let Ok(alias) = String::resolve_value(data_path.join("alias")) {
+                value.merge_at("alias", alias)?;
+            }
             Ok(())
         }
     }
@@ -166,20 +160,25 @@ mod tests {
             value: &mut serde_yaml::Value,
             data_path: &DataPath,
         ) -> Result<(), DataResolverError> {
-            value.merge_at("my_obj", MyObj::resolve_value(data_path.join("my_obj"))?)?;
-            value.merge_at(
-                "my_list",
-                MyOtherObj::resolve_values(data_path.join("my_list"))?,
-            )?;
+            if let Ok(my_obj) = MyObj::resolve_value(data_path.join("my_obj")) {
+                value.merge_at("my_obj", my_obj)?;
+            }
+            if let Ok(my_list) = Vec::<MyOtherObj>::resolve_value(data_path.join("my_list")) {
+                value.merge_at("my_list", my_list)?;
+            }
             Ok(())
         }
     }
 
-    trait GetResolver {
+    trait GetResolver<'a> {
+        fn data_path(&self, address: &'a [&'a str]) -> DataPath<'a>;
         fn resolver(&self) -> DataResolver;
     }
 
-    impl GetResolver for TestFiles {
+    impl<'a> GetResolver<'a> for TestFiles {
+        fn data_path(&self, address: &'a [&'a str]) -> DataPath<'a> {
+            DataPath::new(self.path().to_path_buf(), address)
+        }
         fn resolver(&self) -> DataResolver {
             DataResolver {
                 root: self.path().to_path_buf(),
@@ -188,7 +187,7 @@ mod tests {
     }
 
     #[test]
-    fn resolve_num() -> Result<()> {
+    fn resolves_num() -> Result<()> {
         color_eyre::install()?;
         let mocks = TestFiles::new().unwrap();
         mocks.file(
@@ -198,8 +197,35 @@ mod tests {
                 1
             "},
         )?;
-        let v: u32 = mocks.resolver().get(&[])?;
+        let v: i32 = mocks.resolver().get(&[])?;
         assert_eq!(v, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_list_num_accross_files() -> Result<()> {
+        let mocks = TestFiles::new().unwrap();
+        // See above comment about in future chosing not this behaviour
+        mocks
+            .file(
+                "a.yml",
+                indoc! {"
+	            ---
+	            1
+	        "},
+            )?
+            .file(
+                "b.yml",
+                indoc! {"
+	            ---
+	            2
+	        "},
+            )?;
+
+        let mut v: Vec<i32> = mocks.resolver().get(&[])?;
+        // we get not guarantee on order with file iterator
+        v.sort();
+        assert_eq!(v, vec![1, 2]);
         Ok(())
     }
 
@@ -225,6 +251,7 @@ mod tests {
         Ok(())
     }
 
+    #[test]
     fn resolves_object_from_broken_files() -> Result<()> {
         let mocks = TestFiles::new().unwrap();
         mocks
@@ -233,7 +260,6 @@ mod tests {
                 indoc! {"
                 ---
                 1
-                name: Objy
             "},
             )?
             .file(
@@ -295,7 +321,7 @@ mod tests {
     }
 
     #[test]
-    fn resolves_nested_objects_from_file_tree() -> Result<()> {
+    fn resolves_nested_list_from_files() -> Result<()> {
         let mocks = TestFiles::new().unwrap();
         mocks
             .file(
@@ -320,6 +346,122 @@ mod tests {
                 ---
                 id: 2
                 alias: Ali
+            "},
+            )?;
+        let mut v: Query = mocks.resolver().get(&[])?;
+        v.my_list.sort();
+        assert_eq!(
+            v,
+            Query {
+                my_obj: MyObj {
+                    id: 1,
+                    name: "Objy".to_owned()
+                },
+                my_list: vec![
+                    MyOtherObj {
+                        id: 1,
+                        alias: "Obbo".to_owned(),
+                    },
+                    MyOtherObj {
+                        id: 2,
+                        alias: "Ali".to_owned(),
+                    },
+                ]
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_broken_nested_list_from_dir_index_files() -> Result<()> {
+        let mocks = TestFiles::new().unwrap();
+        mocks
+            .file(
+                "my_obj/index.yml",
+                indoc! {"
+                ---
+                id: 1
+                name: Objy
+            "},
+            )?
+            .file(
+                "my_list/x/index.yml",
+                indoc! {"
+                ---
+                id: 1
+                alias: Obbo
+            "},
+            )?
+            .file(
+                "my_list/y/index.yml",
+                indoc! {"
+                ---
+                id: 2
+                alias: Ali
+            "},
+            )?;
+        let mut v: Query = mocks.resolver().get(&[])?;
+        v.my_list.sort();
+        assert_eq!(
+            v,
+            Query {
+                my_obj: MyObj {
+                    id: 1,
+                    name: "Objy".to_owned()
+                },
+                my_list: vec![
+                    MyOtherObj {
+                        id: 1,
+                        alias: "Obbo".to_owned(),
+                    },
+                    MyOtherObj {
+                        id: 2,
+                        alias: "Ali".to_owned(),
+                    },
+                ]
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_broken_nested_list_from_dir_tree() -> Result<()> {
+        let mocks = TestFiles::new().unwrap();
+        mocks
+            .file(
+                "my_obj/index.yml",
+                indoc! {"
+                ---
+                id: 1
+                name: Objy
+            "},
+            )?
+            .file(
+                "my_list/x/index.yml",
+                indoc! {"
+                ---
+                id: 1
+            "},
+            )?
+            .file(
+                "my_list/x/alias.yml",
+                indoc! {"
+                ---
+                Obbo
+            "},
+            )?
+            .file(
+                "my_list/y/alias.yml",
+                indoc! {"
+                ---
+                Ali
+            "},
+            )?
+            .file(
+                "my_list/y/id.yml",
+                indoc! {"
+                ---
+                2
             "},
             )?;
         let mut v: Query = mocks.resolver().get(&[])?;

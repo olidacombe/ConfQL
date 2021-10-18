@@ -1,5 +1,5 @@
 use graphql_parser::{query, schema};
-use proc_macro2::TokenStream;
+use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 
 pub struct Field<'doc, T: query::Text<'doc>> {
@@ -27,27 +27,23 @@ where
     pub fn merge_line(&self) -> TokenStream {
         let Field { name, field_type } = self;
         let name = name.as_ref();
-        let resolver = match field_type.is_list() {
-            false => format_ident!("resolve_value"),
-            true => format_ident!("resolve_values"),
-        };
         let ty = field_type.inner_tokens();
         quote! {
-            value.merge_at(#name, #ty::#resolver(data_path.join(#name))?)?;
+            if let Ok(v) = <#ty>::resolve_value(data_path.join(#name)) {
+                value.merge_at(#name, v)?;
+            }
         }
     }
     pub fn resolver(&self) -> TokenStream {
         let Self { name, field_type } = self;
         let name = name.as_ref();
         let field_name = format_ident!("{}", name);
+        let getter = quote! {
+            Ok(context.data_resolver.get(&[#name])?)
+        };
         quote! {
             fn #field_name(context: &Ctx) -> FieldResult<#field_type> {
-                // TODO
-                // TODO
-                // The right context.data_resolver.get or whatever
-                Ok(context.data_resolver.get(&[#name])?)
-                // TODO
-                // TODO
+                #getter
             }
         }
     }
@@ -70,6 +66,25 @@ enum FieldType<'a, T: query::Text<'a>> {
     NonNullable(query::Type<'a, T>),
 }
 
+trait RustType {
+    fn rust_type(&self) -> Ident;
+}
+
+impl RustType for &str {
+    fn rust_type(&self) -> Ident {
+        format_ident!(
+            "{}",
+            match self.as_ref() {
+                "Boolean" => "bool",
+                "Float" => "f64",
+                "ID" => "ID",
+                "Int" => "i32",
+                v => v,
+            }
+        )
+    }
+}
+
 impl<'a, T> FieldType<'a, T>
 where
     T: query::Text<'a>,
@@ -79,7 +94,7 @@ where
         use query::Type::{ListType, NamedType, NonNullType};
         match self.schema_type() {
             NamedType(val) => {
-                let val = format_ident!("{}", val.as_ref());
+                let val = val.as_ref().rust_type();
                 quote! {#val}
             }
             ListType(t) => {
@@ -95,12 +110,6 @@ impl<'a, T> FieldType<'a, T>
 where
     T: query::Text<'a>,
 {
-    fn is_list(&self) -> bool {
-        if let query::Type::ListType(_) = self.schema_type() {
-            return true;
-        }
-        false
-    }
     fn schema_type(&self) -> &schema::Type<'a, T> {
         use FieldType::{NonNullable, Nullable};
         let (Nullable(ty) | NonNullable(ty)) = self;

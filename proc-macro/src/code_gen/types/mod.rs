@@ -90,10 +90,6 @@ where
                     #[graphql_object(context = Ctx)]
                     impl #name {
                         #(#resolvers)*
-                        // e.g.
-                        // fn thing(context: &Ctx) -> Result<String, DataResolverError> {
-                        //     Ok("bla".to_owned())
-                        // }
                     }
                 }
             }

@@ -52,7 +52,7 @@ where
     fn imports(&self) -> TokenStream {
         quote! {
             use data_resolver::{DataPath, DataResolver, DataResolverError, Merge, ResolveValue};
-            use juniper::{Context, FieldResult, GraphQLObject, graphql_object};
+            use juniper::{Context, FieldResult, GraphQLObject, ID, graphql_object};
             use serde::Deserialize;
         }
     }
