@@ -1,3 +1,4 @@
+use juniper::ID;
 use serde::Deserialize;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -74,10 +75,14 @@ pub trait ResolveValue {
 
 impl ResolveValue for bool {}
 impl ResolveValue for f64 {}
-// TODO?
-// impl ResolveValue for juniper::ID {}
+impl ResolveValue for ID {}
 impl ResolveValue for String {}
-impl ResolveValue for u32 {}
+impl ResolveValue for i32 {}
+impl<T: ResolveValue> ResolveValue for Option<T> {
+    fn resolve_value(data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
+        T::resolve_value(data_path).or(Ok(serde_yaml::Value::Null))
+    }
+}
 impl<T: ResolveValue> ResolveValue for Vec<T> {
     fn merge_properties(
         value: &mut serde_yaml::Value,
@@ -104,7 +109,7 @@ mod tests {
 
     #[derive(Debug, Deserialize, PartialEq)]
     struct MyObj {
-        id: u32,
+        id: i32,
         name: String,
     }
 
@@ -113,7 +118,7 @@ mod tests {
             value: &mut serde_yaml::Value,
             data_path: &DataPath,
         ) -> Result<(), DataResolverError> {
-            if let Ok(id) = u32::resolve_value(data_path.join("id")) {
+            if let Ok(id) = i32::resolve_value(data_path.join("id")) {
                 value.merge_at("id", id)?;
             }
             if let Ok(name) = String::resolve_value(data_path.join("name")) {
@@ -125,7 +130,7 @@ mod tests {
 
     #[derive(Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd)]
     struct MyOtherObj {
-        id: u32,
+        id: i32,
         alias: String,
     }
 
@@ -134,7 +139,7 @@ mod tests {
             value: &mut serde_yaml::Value,
             data_path: &DataPath,
         ) -> Result<(), DataResolverError> {
-            if let Ok(id) = u32::resolve_value(data_path.join("id")) {
+            if let Ok(id) = i32::resolve_value(data_path.join("id")) {
                 value.merge_at("id", id)?;
             }
             if let Ok(alias) = String::resolve_value(data_path.join("alias")) {
@@ -192,7 +197,7 @@ mod tests {
                 1
             "},
         )?;
-        let v: u32 = mocks.resolver().get(&[])?;
+        let v: i32 = mocks.resolver().get(&[])?;
         assert_eq!(v, 1);
         Ok(())
     }
@@ -217,7 +222,7 @@ mod tests {
 	        "},
             )?;
 
-        let mut v: Vec<u32> = mocks.resolver().get(&[])?;
+        let mut v: Vec<i32> = mocks.resolver().get(&[])?;
         // we get not guarantee on order with file iterator
         v.sort();
         assert_eq!(v, vec![1, 2]);

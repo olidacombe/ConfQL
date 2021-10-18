@@ -7,6 +7,7 @@ edition = "2018"
 
 [dependencies]
 itertools = "0.10.1"
+juniper = "0.15.7"
 serde = { version = "1.0.130", features = ["derive"] }
 serde_yaml = "0.8.21"
 thiserror = "1.0.29"

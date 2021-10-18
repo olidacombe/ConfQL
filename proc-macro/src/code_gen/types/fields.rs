@@ -1,5 +1,5 @@
 use graphql_parser::{query, schema};
-use proc_macro2::TokenStream;
+use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 
 pub struct Field<'doc, T: query::Text<'doc>> {
@@ -38,14 +38,8 @@ where
         let Self { name, field_type } = self;
         let name = name.as_ref();
         let field_name = format_ident!("{}", name);
-        use FieldType::{NonNullable, Nullable};
-        let getter = match &self.field_type {
-            Nullable(_) => quote! {
-                context.data_resolver.get(&[#name]).ok()
-            },
-            NonNullable(_) => quote! {
-                Ok(context.data_resolver.get(&[#name])?)
-            },
+        let getter = quote! {
+            Ok(context.data_resolver.get(&[#name])?)
         };
         quote! {
             fn #field_name(context: &Ctx) -> FieldResult<#field_type> {
@@ -72,6 +66,25 @@ enum FieldType<'a, T: query::Text<'a>> {
     NonNullable(query::Type<'a, T>),
 }
 
+trait RustType {
+    fn rust_type(&self) -> Ident;
+}
+
+impl RustType for &str {
+    fn rust_type(&self) -> Ident {
+        format_ident!(
+            "{}",
+            match self.as_ref() {
+                "Boolean" => "bool",
+                "Float" => "f64",
+                "ID" => "ID",
+                "Int" => "i32",
+                v => v,
+            }
+        )
+    }
+}
+
 impl<'a, T> FieldType<'a, T>
 where
     T: query::Text<'a>,
@@ -81,7 +94,7 @@ where
         use query::Type::{ListType, NamedType, NonNullType};
         match self.schema_type() {
             NamedType(val) => {
-                let val = format_ident!("{}", val.as_ref());
+                let val = val.as_ref().rust_type();
                 quote! {#val}
             }
             ListType(t) => {
