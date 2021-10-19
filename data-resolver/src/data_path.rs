@@ -117,14 +117,14 @@ mod tests {
 
     #[test]
     fn resolves_num_at_root() -> Result<()> {
-        let mocks = TestFiles::new().unwrap();
+        let mocks = TestFiles::new();
         mocks.file(
             "index.yml",
             indoc! {"
                 ---
                 3
             "},
-        )?;
+        );
         let v = mocks.data_path(&[]).value()?;
         assert_eq!(v, yaml! {"3"});
         Ok(())
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn resolves_num_deeper() -> Result<()> {
-        let mocks = TestFiles::new().unwrap();
+        let mocks = TestFiles::new();
         mocks.file(
             "index.yml",
             indoc! {"
@@ -141,7 +141,7 @@ mod tests {
 	                b:
 	                    c: 3
 	        "},
-        )?;
+        );
         let v = mocks.data_path(&["a", "b", "c"]).value()?;
         assert_eq!(v, yaml! {"3"});
         Ok(())
@@ -149,7 +149,7 @@ mod tests {
 
     #[test]
     fn resolves_list_num_at_index() -> Result<()> {
-        let mocks = TestFiles::new().unwrap();
+        let mocks = TestFiles::new();
         mocks.file(
             "index.yml",
             indoc! {"
@@ -159,7 +159,7 @@ mod tests {
 	            - 5
 	            - 6
 	        "},
-        )?;
+        );
         let v = mocks.data_path(&["a"]).value()?;
         assert_eq!(v, yaml! {"[4, 5, 6]"});
         Ok(())

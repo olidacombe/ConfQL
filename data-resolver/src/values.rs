@@ -133,8 +133,8 @@ mod tests {
 			ok: true
 			go: home
 		"};
-        let mocks = TestFiles::new().unwrap();
-        mocks.file(filename, content)?;
+        let mocks = TestFiles::new();
+        mocks.file(filename, content);
         let file_path = mocks.path().join(filename);
 
         let read_value = value_from_file(&file_path)?;

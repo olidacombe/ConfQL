@@ -3,6 +3,5 @@
 members = [
 	"data-resolver",
 	"proc-macro",
-	"test-files",
 	"test-utils"
 ]

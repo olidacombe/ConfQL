@@ -25,7 +25,7 @@ graphql_schema! {
 }
 
 fn main() -> Result<()> {
-    let mocks = TestFiles::new().unwrap();
+    let mocks = TestFiles::new();
     mocks
         .file(
             "compartments/A/index.yml",
@@ -33,7 +33,7 @@ fn main() -> Result<()> {
                 ---
                 name: A
             "},
-        )?
+        )
         .file(
             "compartments/A/things/1.yml",
             indoc! {"
@@ -41,14 +41,14 @@ fn main() -> Result<()> {
                 name: One
                 size: 1.1
             "},
-        )?
+        )
         .file(
             "compartments/B/index.yml",
             indoc! {"
                 ---
                 name: B
             "},
-        )?;
+        );
 
     let ctx = Ctx::from(mocks.path().to_path_buf());
 
