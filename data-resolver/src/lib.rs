@@ -62,11 +62,9 @@ pub trait ResolveValue {
         let mut value = data_path.value().unwrap_or(serde_yaml::Value::Null);
         if data_path.done() {
             Self::merge_properties(&mut value, &data_path)?;
-        } else {
-            if let Some(data_path) = data_path.descend() {
-                if let Ok(mergee) = Self::resolve_value(data_path) {
-                    value.merge(mergee)?;
-                }
+        } else if let Some(data_path) = data_path.descend() {
+            if let Ok(mergee) = Self::resolve_value(data_path) {
+                value.merge(mergee)?;
             }
         }
         Ok(value)
@@ -189,14 +187,14 @@ mod tests {
     #[test]
     fn resolves_num() -> Result<()> {
         color_eyre::install()?;
-        let mocks = TestFiles::new().unwrap();
+        let mocks = TestFiles::new();
         mocks.file(
             "index.yml",
             indoc! {"
                 ---
                 1
             "},
-        )?;
+        );
         let v: i32 = mocks.resolver().get(&[])?;
         assert_eq!(v, 1);
         Ok(())
@@ -204,7 +202,7 @@ mod tests {
 
     #[test]
     fn resolves_list_num_accross_files() -> Result<()> {
-        let mocks = TestFiles::new().unwrap();
+        let mocks = TestFiles::new();
         // See above comment about in future chosing not this behaviour
         mocks
             .file(
@@ -213,14 +211,14 @@ mod tests {
 	            ---
 	            1
 	        "},
-            )?
+            )
             .file(
                 "b.yml",
                 indoc! {"
 	            ---
 	            2
 	        "},
-            )?;
+            );
 
         let mut v: Vec<i32> = mocks.resolver().get(&[])?;
         // we get not guarantee on order with file iterator
@@ -231,7 +229,7 @@ mod tests {
 
     #[test]
     fn resolves_object_from_index() -> Result<()> {
-        let mocks = TestFiles::new().unwrap();
+        let mocks = TestFiles::new();
         mocks.file(
             "index.yml",
             indoc! {"
@@ -239,7 +237,7 @@ mod tests {
                 id: 1
                 name: Objy
             "},
-        )?;
+        );
         let v: MyObj = mocks.resolver().get(&[])?;
         assert_eq!(
             v,
@@ -253,7 +251,7 @@ mod tests {
 
     #[test]
     fn resolves_object_from_broken_files() -> Result<()> {
-        let mocks = TestFiles::new().unwrap();
+        let mocks = TestFiles::new();
         mocks
             .file(
                 "id.yml",
@@ -261,14 +259,14 @@ mod tests {
                 ---
                 1
             "},
-            )?
+            )
             .file(
                 "name.yml",
                 indoc! {"
                 ---
                 Objy
             "},
-            )?;
+            );
         let v: MyObj = mocks.resolver().get(&[])?;
         assert_eq!(
             v,
@@ -282,7 +280,7 @@ mod tests {
 
     #[test]
     fn resolves_deep_object_from_index() -> Result<()> {
-        let mocks = TestFiles::new().unwrap();
+        let mocks = TestFiles::new();
         mocks.file(
             "index.yml",
             indoc! {"
@@ -296,7 +294,7 @@ mod tests {
                 - id: 2
                   alias: Ali
             "},
-        )?;
+        );
         let v: Query = mocks.resolver().get(&[])?;
         assert_eq!(
             v,
@@ -322,7 +320,7 @@ mod tests {
 
     #[test]
     fn resolves_nested_list_from_files() -> Result<()> {
-        let mocks = TestFiles::new().unwrap();
+        let mocks = TestFiles::new();
         mocks
             .file(
                 "my_obj/index.yml",
@@ -331,7 +329,7 @@ mod tests {
                 id: 1
                 name: Objy
             "},
-            )?
+            )
             .file(
                 "my_list/x.yml",
                 indoc! {"
@@ -339,7 +337,7 @@ mod tests {
                 id: 1
                 alias: Obbo
             "},
-            )?
+            )
             .file(
                 "my_list/y.yml",
                 indoc! {"
@@ -347,7 +345,7 @@ mod tests {
                 id: 2
                 alias: Ali
             "},
-            )?;
+            );
         let mut v: Query = mocks.resolver().get(&[])?;
         v.my_list.sort();
         assert_eq!(
@@ -374,7 +372,7 @@ mod tests {
 
     #[test]
     fn resolves_broken_nested_list_from_dir_index_files() -> Result<()> {
-        let mocks = TestFiles::new().unwrap();
+        let mocks = TestFiles::new();
         mocks
             .file(
                 "my_obj/index.yml",
@@ -383,7 +381,7 @@ mod tests {
                 id: 1
                 name: Objy
             "},
-            )?
+            )
             .file(
                 "my_list/x/index.yml",
                 indoc! {"
@@ -391,7 +389,7 @@ mod tests {
                 id: 1
                 alias: Obbo
             "},
-            )?
+            )
             .file(
                 "my_list/y/index.yml",
                 indoc! {"
@@ -399,7 +397,7 @@ mod tests {
                 id: 2
                 alias: Ali
             "},
-            )?;
+            );
         let mut v: Query = mocks.resolver().get(&[])?;
         v.my_list.sort();
         assert_eq!(
@@ -426,7 +424,7 @@ mod tests {
 
     #[test]
     fn resolves_broken_nested_list_from_dir_tree() -> Result<()> {
-        let mocks = TestFiles::new().unwrap();
+        let mocks = TestFiles::new();
         mocks
             .file(
                 "my_obj/index.yml",
@@ -435,35 +433,35 @@ mod tests {
                 id: 1
                 name: Objy
             "},
-            )?
+            )
             .file(
                 "my_list/x/index.yml",
                 indoc! {"
                 ---
                 id: 1
             "},
-            )?
+            )
             .file(
                 "my_list/x/alias.yml",
                 indoc! {"
                 ---
                 Obbo
             "},
-            )?
+            )
             .file(
                 "my_list/y/alias.yml",
                 indoc! {"
                 ---
                 Ali
             "},
-            )?
+            )
             .file(
                 "my_list/y/id.yml",
                 indoc! {"
                 ---
                 2
             "},
-            )?;
+            );
         let mut v: Query = mocks.resolver().get(&[])?;
         v.my_list.sort();
         assert_eq!(

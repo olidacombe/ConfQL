@@ -15,5 +15,5 @@ thiserror = "1.0.29"
 [dev-dependencies]
 color-eyre = "0.5.11"
 indoc = "1.0.3"
-test-files = { path = "../test-files" }
+test-files = "0.1.0"
 test-utils = { path = "../test-utils" }

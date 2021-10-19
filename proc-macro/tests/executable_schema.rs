@@ -14,16 +14,14 @@ graphql_schema! {
 }
 
 fn main() {
-    let mocks = TestFiles::new().unwrap();
-    mocks
-        .file(
-            "id.yml",
-            indoc! {"
+    let mocks = TestFiles::new();
+    mocks.file(
+        "id.yml",
+        indoc! {"
                 ---
                 MegaString
             "},
-        )
-        .ok();
+    );
 
     let ctx = Ctx::from(mocks.path().to_path_buf());
 

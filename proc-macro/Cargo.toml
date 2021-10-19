@@ -26,7 +26,7 @@ anyhow = "1.0.44"
 color-eyre = "0.5.11"
 indoc = "1.0.3"
 tempdir = "0.3.7"
-test-files = { path = "../test-files" }
+test-files = "0.1.0"
 test-utils = { path = "../test-utils" }
 touch = "0.0.1"
 trybuild = { version = "1.0", features = ["diff"] }

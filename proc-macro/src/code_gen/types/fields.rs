@@ -74,11 +74,11 @@ impl RustType for &str {
     fn rust_type(&self) -> Ident {
         format_ident!(
             "{}",
-            match self.as_ref() {
-                "Boolean" => "bool",
-                "Float" => "f64",
-                "ID" => "ID",
-                "Int" => "i32",
+            match self {
+                &"Boolean" => "bool",
+                &"Float" => "f64",
+                &"ID" => "ID",
+                &"Int" => "i32",
                 v => v,
             }
         )
