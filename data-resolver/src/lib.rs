@@ -62,11 +62,9 @@ pub trait ResolveValue {
         let mut value = data_path.value().unwrap_or(serde_yaml::Value::Null);
         if data_path.done() {
             Self::merge_properties(&mut value, &data_path)?;
-        } else {
-            if let Some(data_path) = data_path.descend() {
-                if let Ok(mergee) = Self::resolve_value(data_path) {
-                    value.merge(mergee)?;
-                }
+        } else if let Some(data_path) = data_path.descend() {
+            if let Ok(mergee) = Self::resolve_value(data_path) {
+                value.merge(mergee)?;
             }
         }
         Ok(value)
