@@ -66,4 +66,4 @@ jobs:
       - name: Run cargo-tarpaulin
         uses: actions-rs/tarpaulin@v0.1
         with:
-          args: --ignore-tests --timeout 300
+          args: --ignore-tests -e proc-macro
