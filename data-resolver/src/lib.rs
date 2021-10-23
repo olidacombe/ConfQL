@@ -69,6 +69,9 @@ pub trait ResolveValue {
         }
         Ok(value)
     }
+    fn resolve_vec_base(_data_path: &DataPath) -> serde_yaml::Value {
+        serde_yaml::Value::Null
+    }
 }
 
 impl ResolveValue for bool {}
@@ -90,7 +93,16 @@ impl<T: ResolveValue> ResolveValue for Vec<T> {
             data_path
                 .sub_paths()
                 .into_iter()
-                .filter_map(|dp| T::resolve_value(dp).ok())
+                .filter_map(|dp| {
+                    let mut base_value = T::resolve_vec_base(&dp);
+                    T::resolve_value(dp)
+                        .ok()
+                        .map(|v| match base_value.merge(v) {
+                            Ok(_) => Some(base_value),
+                            _ => None,
+                        })
+                })
+                .map(|v| v.unwrap())
                 .collect(),
         )?;
         Ok(())
