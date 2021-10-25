@@ -1,5 +1,5 @@
+use std::ffi::OsStr;
 use std::fs;
-use std::iter;
 use std::path::{Path, PathBuf};
 
 use super::values::{take_sub_value_at_address, value_from_file};
@@ -17,6 +17,25 @@ pub struct DataPath<'a> {
 }
 
 impl<'a> DataPath<'a> {
+    pub fn descend(mut self) -> Option<Self> {
+        use Level::{Dir, File};
+        match &self.level {
+            File => {
+                if !self.path.is_dir() {
+                    return None;
+                }
+                self.level = Dir;
+            }
+            Dir => {
+                if let Some((head, tail)) = self.address.split_first() {
+                    self.path.push(head);
+                    self.address = tail;
+                    self.level = File;
+                }
+            }
+        }
+        Some(self)
+    }
     pub fn done(&self) -> bool {
         use Level::{Dir, File};
         match &self.level {
@@ -27,27 +46,8 @@ impl<'a> DataPath<'a> {
     fn file(&self) -> PathBuf {
         self.path.with_extension("yml")
     }
-    pub fn files(&self) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
-        match fs::read_dir(&self.path) {
-            Ok(reader) => Box::new(
-                reader
-                    .filter_map(|dir_entry| dir_entry.ok())
-                    .map(|dir_entry| dir_entry.path()),
-            ),
-            _ => Box::new(iter::empty::<PathBuf>()),
-        }
-    }
-    pub fn sub_paths(&self) -> Vec<Self> {
-        fs::read_dir(&self.path).map_or_else(
-            |_| vec![],
-            |reader| {
-                reader
-                    .filter_map(|dir_entry| dir_entry.ok())
-                    .map(|dir_entry| dir_entry.file_name())
-                    .map(|p| self.join(p))
-                    .collect()
-            },
-        )
+    pub fn file_stem(&self) -> Option<&OsStr> {
+        self.path.file_stem()
     }
     fn get_value(&self, path: &Path) -> Result<serde_yaml::Value, DataResolverError> {
         let mut value = value_from_file(path)?;
@@ -70,24 +70,17 @@ impl<'a> DataPath<'a> {
             path: path.into(),
         }
     }
-    pub fn descend(mut self) -> Option<Self> {
-        use Level::{Dir, File};
-        match &self.level {
-            File => {
-                if !self.path.is_dir() {
-                    return None;
-                }
-                self.level = Dir;
-            }
-            Dir => {
-                if let Some((head, tail)) = self.address.split_first() {
-                    self.path.push(head);
-                    self.address = tail;
-                    self.level = File;
-                }
-            }
-        }
-        Some(self)
+    pub fn sub_paths(&self) -> Vec<Self> {
+        fs::read_dir(&self.path).map_or_else(
+            |_| vec![],
+            |reader| {
+                reader
+                    .filter_map(|dir_entry| dir_entry.ok())
+                    .map(|dir_entry| dir_entry.file_name())
+                    .map(|p| self.join(p))
+                    .collect()
+            },
+        )
     }
     pub fn value(&self) -> Result<serde_yaml::Value, DataResolverError> {
         match &self.level {

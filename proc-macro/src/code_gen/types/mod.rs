@@ -11,9 +11,26 @@ pub enum Type<'a, T: query::Text<'a>> {
     Query(Object<'a, T>),
 }
 
-pub struct Object<'doc, T: query::Text<'doc>> {
+pub struct Object<'a, T: query::Text<'a>> {
     pub name: T::Value,
-    fields: Vec<Field<'doc, T>>,
+    fields: Vec<Field<'a, T>>,
+}
+
+impl<'a, T: query::Text<'a>> Object<'a, T> {
+    fn array_filename_fields(&self) -> Option<Vec<String>> {
+        let fields: Vec<String> = self
+            .fields
+            .iter()
+            .filter_map(|f| match f.directive("arrayFilename") {
+                Some(query::Value::Boolean(true)) => Some(f.name.as_ref().to_owned()),
+                _ => None,
+            })
+            .collect();
+        match fields.is_empty() {
+            true => None,
+            false => Some(fields),
+        }
+    }
 }
 
 impl<'a, T: query::Text<'a>> From<schema::TypeDefinition<'a, T>> for Object<'a, T> {
@@ -63,6 +80,31 @@ where
                 let name = format_ident!("{}", obj.name.as_ref());
                 let fields = obj.fields.iter();
                 let merge_lines = obj.fields.iter().map(|f| f.merge_line());
+                let mut resolve_value_methods = quote! {
+                    fn merge_properties(
+                        value: &mut serde_yaml::Value,
+                        data_path: &DataPath
+                    ) -> Result<(), DataResolverError> {
+                        #(#merge_lines)*
+                        Ok(())
+                    }
+                };
+                if let Some(filename_fields) = obj.array_filename_fields() {
+                    resolve_value_methods.extend(quote! {
+                        fn resolve_vec_base(data_path: &DataPath) -> serde_yaml::Value {
+                            use serde_yaml::{Mapping, Value};
+                            let mut mapping = Mapping::new();
+                            if let Some(file_stem) = data_path.file_stem() {
+                                if let Some(file_stem) = file_stem.to_str() {
+                                    for field in [#(#filename_fields),*] {
+                                        mapping.insert(Value::from(field), Value::from(file_stem));
+                                    }
+                                }
+                            }
+                            Value::Mapping(mapping)
+                        }
+                    })
+                }
                 quote! {
                     #[derive(Deserialize)]
                     #[derive(GraphQLObject)]
@@ -71,13 +113,7 @@ where
                     }
 
                     impl ResolveValue for #name {
-                        fn merge_properties(
-                            value: &mut serde_yaml::Value,
-                            data_path: &DataPath
-                        ) -> Result<(), DataResolverError> {
-                            #(#merge_lines)*
-                            Ok(())
-                        }
+                        #resolve_value_methods
                     }
                 }
             }
