@@ -18,8 +18,21 @@ pub struct Object<'a, T: query::Text<'a>> {
 
 impl<'a, T: query::Text<'a>> Object<'a, T> {
     fn array_filename_fields(&self) -> Option<Vec<String>> {
-        // TODO
-        Some(vec!["noim".to_owned()])
+        let fields: Vec<String> = self
+            .fields
+            .iter()
+            .filter_map(|f| match f.directive("arrayFilename") {
+                Some(v) => match v {
+                    query::Value::Boolean(true) => Some(f.name.as_ref().to_owned()),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect();
+        match fields.is_empty() {
+            true => None,
+            false => Some(fields),
+        }
     }
 }
 

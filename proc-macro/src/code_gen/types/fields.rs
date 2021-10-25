@@ -1,21 +1,42 @@
 use graphql_parser::{query, schema};
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote, ToTokens};
+use std::collections::HashMap;
 
-pub struct Field<'doc, T: query::Text<'doc>> {
-    name: T::Value,
-    field_type: FieldType<'doc, T>,
+pub struct Field<'a, T: query::Text<'a>> {
+    pub name: T::Value,
+    field_type: FieldType<'a, T>,
+    directives: HashMap<String, query::Value<'a, T>>,
 }
 
 impl<'a, T: query::Text<'a>> From<schema::Field<'a, T>> for Field<'a, T> {
     fn from(field: schema::Field<'a, T>) -> Self {
         let schema::Field {
-            name, field_type, ..
+            name,
+            field_type,
+            directives,
+            ..
         } = field;
+        let directives = directives
+            .into_iter()
+            .filter(|d| d.name.as_ref() == "confql")
+            .flat_map(|d| d.arguments)
+            .map(|(k, v)| (k.as_ref().to_owned(), v))
+            .collect();
         Self {
             name,
             field_type: FieldType::from(field_type),
+            directives,
         }
+    }
+}
+
+impl<'a, T> Field<'a, T>
+where
+    T: query::Text<'a>,
+{
+    pub fn directive(&self, key: &str) -> Option<&query::Value<'a, T>> {
+        self.directives.get(key)
     }
 }
 
@@ -25,7 +46,9 @@ where
     T: Clone,
 {
     pub fn merge_line(&self) -> TokenStream {
-        let Field { name, field_type } = self;
+        let Field {
+            name, field_type, ..
+        } = self;
         let name = name.as_ref();
         let ty = field_type.inner_tokens();
         quote! {
@@ -35,7 +58,9 @@ where
         }
     }
     pub fn resolver(&self) -> TokenStream {
-        let Self { name, field_type } = self;
+        let Self {
+            name, field_type, ..
+        } = self;
         let name = name.as_ref();
         let field_name = format_ident!("{}", name);
         let getter = quote! {
@@ -55,7 +80,9 @@ where
     T: Clone,
 {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let Field { name, field_type } = self;
+        let Field {
+            name, field_type, ..
+        } = self;
         let name = format_ident!("{}", name.as_ref());
         tokens.extend(quote! { #name: #field_type });
     }
