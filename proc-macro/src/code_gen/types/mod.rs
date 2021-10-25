@@ -22,10 +22,7 @@ impl<'a, T: query::Text<'a>> Object<'a, T> {
             .fields
             .iter()
             .filter_map(|f| match f.directive("arrayFilename") {
-                Some(v) => match v {
-                    query::Value::Boolean(true) => Some(f.name.as_ref().to_owned()),
-                    _ => None,
-                },
+                Some(query::Value::Boolean(true)) => Some(f.name.as_ref().to_owned()),
                 _ => None,
             })
             .collect();
