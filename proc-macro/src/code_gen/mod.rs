@@ -51,7 +51,7 @@ where
 {
     fn imports(&self) -> TokenStream {
         quote! {
-            use data_resolver::{DataPath, DataResolver, DataResolverError, Merge, ResolveValue};
+            use confql_data_resolver::{DataPath, DataResolver, DataResolverError, Merge, ResolveValue};
             use juniper::{Context, FieldResult, GraphQLObject, ID, graphql_object};
             use serde::Deserialize;
         }
