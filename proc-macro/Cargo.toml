@@ -1,5 +1,5 @@
 [package]
-name = "confql"
+name = "confql-proc-macro"
 version = "0.1.0"
 edition = "2018"
 description = "Procedural macro for creating GraphQL server from yaml file trees and a schema"
@@ -9,10 +9,6 @@ keywords = ["graphql", "yaml"]
 
 [lib]
 proc-macro = true
-
-[[test]]
-name = "tests"
-path = "tests/all.rs"
 
 [dependencies]
 confql-data-resolver = { version = "0.1.0", path = "../data-resolver" }

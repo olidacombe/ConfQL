@@ -1,0 +1,21 @@
+[package]
+name = "confql"
+version = "0.1.0"
+edition = "2018"
+
+[[test]]
+name = "tests"
+path = "tests/all.rs"
+
+[dependencies]
+confql-data-resolver = { version = "0.1.0", path = "../data-resolver" }
+confql-proc-macro = { version = "0.1.0", path = "../proc-macro" }
+
+[dev-dependencies]
+color-eyre = "0.5.11"
+indoc = "1.0.3"
+juniper = "0.15.7"
+serde = "1.0.130"
+serde_yaml = "0.8.21"
+test-files = "0.1.0"
+trybuild = "1.0.52"

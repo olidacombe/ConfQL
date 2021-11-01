@@ -1,4 +1,4 @@
-use confql::graphql_schema;
+use confql_proc_macro::graphql_schema;
 
 graphql_schema! {
     type Thing {

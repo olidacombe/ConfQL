@@ -1,7 +1,9 @@
 [workspace]
 
 members = [
+	"confql",
 	"data-resolver",
+	"example",
 	"proc-macro",
 	"test-utils"
 ]

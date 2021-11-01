@@ -51,7 +51,7 @@ where
 {
     fn imports(&self) -> TokenStream {
         quote! {
-            use confql_data_resolver::{DataPath, DataResolver, DataResolverError, Merge, ResolveValue};
+            use confql::confql_data_resolver::{DataPath, DataResolver, DataResolverError, Merge, ResolveValue};
             use juniper::{Context, FieldResult, GraphQLObject, ID, graphql_object};
             use serde::Deserialize;
         }
@@ -63,10 +63,10 @@ where
             }
 
             use std::path::PathBuf;
-            impl From<PathBuf> for Ctx {
-                fn from(p: PathBuf) -> Self {
+            impl Ctx {
+                fn from<P: Into<PathBuf>>(p: P) -> Self {
                     Self {
-                        data_resolver: p.into()
+                        data_resolver: DataResolver::from(p.into())
                     }
                 }
             }
