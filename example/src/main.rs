@@ -1,6 +1,8 @@
-//! Actix web juniper example
+//! Actix web example
 //!
-//! A simple example integrating juniper in actix-web
+//! A simple example integrating with actix-web
+#[macro_use]
+extern crate lazy_static;
 use std::io;
 use std::sync::Arc;
 
@@ -20,8 +22,19 @@ graphql_schema! {
     }
 }
 
+lazy_static! {
+    static ref PORT: u16 = std::env::var("PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(8080);
+    static ref BIND_ADDR: String = std::env::var("BIND_ADDR")
+        .ok()
+        .unwrap_or("127.0.0.1".to_string());
+    static ref ADDR: String = format!("{}:{}", *BIND_ADDR, *PORT);
+}
+
 async fn graphiql() -> HttpResponse {
-    let html = graphiql_source("http://127.0.0.1:8080/graphql", None);
+    let html = graphiql_source(&format!("http://{}/graphql", *ADDR), None);
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(html)
@@ -45,7 +58,7 @@ async fn graphql(
 #[actix_web::main]
 async fn main() -> io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_web=info");
-    // env_logger::init();
+    env_logger::init();
 
     // Create Juniper schema
     let schema = std::sync::Arc::new(Schema::new(
@@ -62,7 +75,7 @@ async fn main() -> io::Result<()> {
             .service(web::resource("/graphql").route(web::post().to(graphql)))
             .service(web::resource("/graphiql").route(web::get().to(graphiql)))
     })
-    .bind("127.0.0.1:8080")?
+    .bind(&*ADDR)?
     .run()
     .await
 }
