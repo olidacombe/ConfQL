@@ -23,14 +23,19 @@ graphql_schema! {
 }
 
 lazy_static! {
+    static ref BIND_ADDR: String = std::env::var("BIND_ADDR")
+        .ok()
+        .unwrap_or("127.0.0.1".to_string());
     static ref PORT: u16 = std::env::var("PORT")
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(8080);
-    static ref BIND_ADDR: String = std::env::var("BIND_ADDR")
-        .ok()
-        .unwrap_or("127.0.0.1".to_string());
     static ref ADDR: String = format!("{}:{}", *BIND_ADDR, *PORT);
+    static ref DATA_ROOT: PathBuf = std::env::var("DATA_ROOT")
+        .map_or_else(|_e| std::env::current_dir().unwrap(), |root| root.into())
+        .canonicalize()
+        .unwrap();
+    static ref CTX: Ctx = Ctx::from(DATA_ROOT.clone());
 }
 
 async fn graphiql() -> HttpResponse {
@@ -44,9 +49,8 @@ async fn graphql(
     st: web::Data<Arc<Schema>>,
     data: web::Json<GraphQLRequest>,
 ) -> Result<HttpResponse, Error> {
-    let ctx = Ctx::from(PathBuf::from("./"));
     let user = web::block(move || {
-        let res = data.execute_sync(&st, &ctx);
+        let res = data.execute_sync(&st, &CTX);
         serde_json::to_string(&res)
     })
     .await?;
@@ -57,7 +61,7 @@ async fn graphql(
 
 #[actix_web::main]
 async fn main() -> io::Result<()> {
-    std::env::set_var("RUST_LOG", "actix_web=info");
+    std::env::set_var("RUST_LOG", "info");
     env_logger::init();
 
     // Create Juniper schema
@@ -66,6 +70,12 @@ async fn main() -> io::Result<()> {
         EmptyMutation::new(),
         EmptySubscription::new(),
     ));
+
+    log::info!(
+        "Starting webserver {} from data path {:?}",
+        *ADDR,
+        *DATA_ROOT
+    );
 
     // Start http server
     HttpServer::new(move || {
