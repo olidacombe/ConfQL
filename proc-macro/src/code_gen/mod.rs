@@ -3,6 +3,7 @@ use graphql_parser::{query, schema};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use std::convert::TryFrom;
+use std::path::PathBuf;
 use thiserror::Error;
 
 mod types;
@@ -14,10 +15,13 @@ pub enum CodeGenError {
     #[error("No query definition in schema")]
     SchemaMissingQuery,
     #[error(transparent)]
+    SchemaFileReadError(#[from] std::io::Error),
+    #[error(transparent)]
     QraphQLError(#[from] graphql_parser::schema::ParseError),
 }
 
 enum SchemaLocation {
+    FilePath(PathBuf),
     Literal(String),
 }
 
@@ -26,15 +30,22 @@ pub struct CodeGen {
 }
 
 impl CodeGen {
+    pub fn from_schema_file(path: PathBuf) -> Self {
+        Self {
+            source: SchemaLocation::FilePath(path),
+        }
+    }
     pub fn from_schema_literal(schema: String) -> Self {
         Self {
             source: SchemaLocation::Literal(schema),
         }
     }
     pub fn generate_code(self) -> Result<TokenStream, CodeGenError> {
-        use SchemaLocation::Literal;
-        // TODO a match when we have FilePath variant
-        let Literal(schema) = self.source;
+        use SchemaLocation::{FilePath, Literal};
+        let schema = match self.source {
+            Literal(schema) => schema,
+            FilePath(path) => std::fs::read_to_string(&path)?,
+        };
         let parsed = SchemaParse::<String>::try_from(parse_schema::<String>(&schema)?)?;
         Ok(parsed.into_token_stream())
     }

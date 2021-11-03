@@ -7,20 +7,12 @@ use std::io;
 use std::sync::Arc;
 
 use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer};
-use confql::graphql_schema;
+use confql::graphql_schema_from_file;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
 use juniper::{EmptyMutation, EmptySubscription};
 
-graphql_schema! {
-    type Query {
-        id: String!
-    }
-
-    schema {
-        query: Query
-    }
-}
+graphql_schema_from_file!(schema.gql);
 
 lazy_static! {
     static ref BIND_ADDR: String = std::env::var("BIND_ADDR")
