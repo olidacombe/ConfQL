@@ -8,7 +8,6 @@ use std::sync::Arc;
 
 use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer};
 use confql::graphql_schema_from_file;
-use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
 use juniper::{EmptyMutation, EmptySubscription};
 
@@ -17,7 +16,7 @@ graphql_schema_from_file!(schema.gql);
 lazy_static! {
     static ref BIND_ADDR: String = std::env::var("BIND_ADDR")
         .ok()
-        .unwrap_or("127.0.0.1".to_string());
+        .unwrap_or("0.0.0.0".to_string());
     static ref PORT: u16 = std::env::var("PORT")
         .ok()
         .and_then(|p| p.parse().ok())
@@ -28,13 +27,6 @@ lazy_static! {
         .canonicalize()
         .unwrap();
     static ref CTX: Ctx = Ctx::from(DATA_ROOT.clone());
-}
-
-async fn graphiql() -> HttpResponse {
-    let html = graphiql_source(&format!("http://{}/graphql", *ADDR), None);
-    HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(html)
 }
 
 async fn graphql(
@@ -75,7 +67,6 @@ async fn main() -> io::Result<()> {
             .data(schema.clone())
             .wrap(middleware::Logger::default())
             .service(web::resource("/graphql").route(web::post().to(graphql)))
-            .service(web::resource("/graphiql").route(web::get().to(graphiql)))
     })
     .bind(&*ADDR)?
     .run()

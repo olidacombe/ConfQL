@@ -1,11 +1,15 @@
 [package]
 name = "example"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2018"
+
+[[bin]]
+name = "confql"
+path = "src/main.rs"
 
 [dependencies]
 actix-web = "3.3.2"
-confql = "0.1.0"
+confql = "0.2.0"
 env_logger = "0.9.0"
 juniper = "0.15.7"
 lazy_static = "1.4.0"
