@@ -17,4 +17,5 @@ FROM alpine AS runtime
 RUN addgroup -S myuser && adduser -S myuser -G myuser
 COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/confql /usr/local/bin/
 USER myuser
+ENV DATA_ROOT=/data
 CMD ["/usr/local/bin/confql"]
