@@ -1,0 +1,22 @@
+[package]
+name = "example"
+version = "0.3.0"
+edition = "2018"
+description = "GraphQL server from schema file and yaml directory"
+license = "MIT"
+repository = "https://github.com/olidacombe/confql"
+keywords = ["graphql", "yaml"]
+
+[[bin]]
+name = "confql"
+path = "src/main.rs"
+
+[dependencies]
+actix-web = "3.3.2"
+confql = "0.3.0"
+env_logger = "0.9.0"
+juniper = "0.15.7"
+lazy_static = "1.4.0"
+log = "0.4.14"
+serde = "1.0.130"
+serde_json = "1.0.68"

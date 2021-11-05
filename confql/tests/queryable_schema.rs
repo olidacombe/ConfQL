@@ -1,5 +1,5 @@
 use color_eyre::Result;
-use confql::graphql_schema;
+use confql_proc_macro::graphql_schema;
 use indoc::indoc;
 use juniper::{graphql_value, EmptyMutation, EmptySubscription};
 use test_files::TestFiles;
