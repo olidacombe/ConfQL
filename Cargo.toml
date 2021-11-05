@@ -1,9 +1,12 @@
 [workspace]
 
+exclude = [
+	"example"
+]
+
 members = [
 	"confql",
 	"data-resolver",
-	"example",
 	"proc-macro",
 	"test-utils"
 ]
