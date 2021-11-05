@@ -2,6 +2,10 @@
 name = "example"
 version = "0.3.0"
 edition = "2018"
+description = "GraphQL server from schema file and yaml directory"
+license = "MIT"
+repository = "https://github.com/olidacombe/confql"
+keywords = ["graphql", "yaml"]
 
 [[bin]]
 name = "confql"
