@@ -1,6 +1,6 @@
 [package]
 name = "confql-proc-macro"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2018"
 description = "Procedural macro for creating GraphQL server from yaml file trees and a schema"
 license = "MIT"
@@ -11,7 +11,7 @@ keywords = ["graphql", "yaml"]
 proc-macro = true
 
 [dependencies]
-confql-data-resolver = { version = "0.2.0", path = "../data-resolver" }
+confql-data-resolver = { version = "0.3.0", path = "../data-resolver" }
 graphql-parser = "0.3.0"
 itertools = "0.10.1"
 juniper = "0.15.7"

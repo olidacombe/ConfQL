@@ -1,6 +1,6 @@
 [package]
 name = "confql-data-resolver"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2018"
 description = "Internal yaml data resolver for confql"
 license = "MIT"

@@ -1,8 +1,10 @@
 # Example
 
-This is an example webserver which parses `schema.gql` to expose a graphql endpoint which resolves data from a directory on the filesystem.
+This is an example webserver which parses `schema.gql` to expose a graphql endpoint, resolving data from a directory on the filesystem.
 
 Please see the included `schema.gql` and `data` directory to get going.
+
+For more detailed on special schema directives or otherwise how things work, please consult the [rust docs](https://docs.rs/confql) or [repo root](..).
 
 ## Making a Docker image
 
@@ -38,3 +40,7 @@ The following variables configure the server:
 | BIND_ADDR | Bind address, default `0.0.0.0` |
 | DATA_ROOT | Root path of directory containing yaml data to serve, default is current working directory |
 | PORT | TCP Port to listen on, default `8080` |
+
+## Schema Changes
+
+Data is read on the fly, but if you change your schema, that needs a recompile.  [ConfQL](..) is essentially a procedural macro which bakes data file traversal impls at compile time from your schema definition.
