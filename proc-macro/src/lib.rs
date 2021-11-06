@@ -1,3 +1,6 @@
+//! Some procedural macros taking a GraphQL schema, and generating
+//! structs for all types in the schema with data resolution impls,
+//! along with a [juniper::RootNode] ready for execution.
 #![deny(missing_docs, rustdoc::missing_doc_code_examples)]
 extern crate proc_macro;
 
@@ -13,12 +16,18 @@ fn generate_code(gen: CodeGen) -> proc_macro::TokenStream {
     }
 }
 
+/// Generates a [juniper::RootNode] and structs with data resolution
+/// impls from a literal schema in code.
+/// This is predominantly used for tests.  Most likely,
+/// clients of this crate would instead use [graphql_schema_from_file].
 #[proc_macro]
 pub fn graphql_schema(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let schema = input.to_string();
     generate_code(CodeGen::from_schema_literal(schema))
 }
 
+/// Generates a [juniper::RootNode] and structs with data resolution impls from a
+/// schema file path relative to the callee's crate root.
 #[proc_macro]
 pub fn graphql_schema_from_file(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let schema_path: PathBuf = input.to_string().into();

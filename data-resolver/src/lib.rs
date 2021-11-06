@@ -1,3 +1,5 @@
+//! Data resolution for [confql].
+
 #![deny(missing_docs, rustdoc::missing_doc_code_examples)]
 use juniper::ID;
 use serde::Deserialize;
@@ -110,6 +112,16 @@ pub trait ResolveValue {
         }
         Ok(value)
     }
+    /// Resolve a starting value before data acquisition from actual file
+    /// content.  Null (default impl) is a good starting value in most cases,
+    /// because it accepts any merge.
+    /// Explicitly implement this in cases like
+    /// `impl<T: ResolveValue> ResolveValue for Vec<T>`
+    /// where the initial value might not be null (i.e. in the Vec case, some
+    /// fields may be predefined by the file stem of your [DataPath].
+    fn resolve_vec_base(_data_path: &DataPath) -> serde_yaml::Value {
+        serde_yaml::Value::Null
+    }
 }
 
 impl ResolveValue for bool {}
@@ -132,7 +144,7 @@ impl<T: ResolveValue> ResolveValue for Vec<T> {
                 .sub_paths()
                 .into_iter()
                 .filter_map(|dp| {
-                    let mut base_value = serde_yaml::Value::Null;
+                    let mut base_value = T::resolve_vec_base(&dp);
                     T::resolve_value(dp)
                         .ok()
                         .map(|v| match base_value.merge(v) {
