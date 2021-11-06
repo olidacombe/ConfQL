@@ -71,6 +71,9 @@ impl From<PathBuf> for DataResolver {
 /// mostly specify the [merge_properties](ResolveValue::merge_properties()) function in a very straightforward way, i.e.
 ///
 /// ```
+/// use confql_data_resolver::{DataPath, DataResolverError, Merge, ResolveValue};
+/// use serde_yaml;
+///
 /// struct MyObj {
 ///     id: i32,
 ///     name: String,
@@ -78,7 +81,7 @@ impl From<PathBuf> for DataResolver {
 ///
 /// impl ResolveValue for MyObj {
 ///     fn merge_properties(
-////         value: &mut serde_yaml::Value,
+///         value: &mut serde_yaml::Value,
 ///         data_path: &DataPath,
 ///     ) -> Result<(), DataResolverError> {
 ///         if let Ok(id) = i32::resolve_value(data_path.join("id")) {
