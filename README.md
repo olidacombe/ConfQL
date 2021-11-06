@@ -120,7 +120,7 @@ to get
 
 ## Special Directives
 
-The yaml file use case threw up a common pattern where there's an array of objects represented by a dictionary of yaml files, each representing one object, each file name essentially representing a field.
+The yaml file use case threw up a common pattern where there's an array of objects represented by a directory of yaml files, each representing one object, each file name essentially representing a field.
 
 E.g.
 

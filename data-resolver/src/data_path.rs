@@ -1,3 +1,22 @@
+//! Data path representations.
+//!
+//! When resolving data from a collection of files, we iterate
+//! down from top-level, and descend a [DataPath] until exhaustion,
+//! merging values as we go.  That way, more specific data paths
+//! override fields as necessary, and we can be flexible about how
+//! the data for a yaml mapping is broken up into smaller files.
+//!
+//! At a high-level, given a data address of ["a", "b", "c"], we can iterate like so:
+//!
+//! - look for `a.b.c` in `index.yml`
+//! - look for `b.c` in `a.yml`
+//! - look for `b.c` in `a/index.yml`
+//! - look for `c` in `a/b.yml`
+//! - look for `c` in `a/b/index.yml`
+//! - merge all data from `a/b/c.yml`
+//! - merge all data from `a/b/c/index.yml`
+//!
+//! [DataPath] provides a simple means for performing this process.
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -10,6 +29,7 @@ enum Level {
     File,
 }
 
+/// Represents a position in the data directory when resolving data.
 pub struct DataPath<'a> {
     level: Level,
     path: PathBuf,
@@ -17,6 +37,8 @@ pub struct DataPath<'a> {
 }
 
 impl<'a> DataPath<'a> {
+    /// Takes self by value, and steps to the next logical data path (mutating self).  Returns None
+    /// if there's nowhere to go.
     pub fn descend(mut self) -> Option<Self> {
         use Level::{Dir, File};
         match &self.level {
@@ -36,6 +58,8 @@ impl<'a> DataPath<'a> {
         }
         Some(self)
     }
+    /// Returns whether or not this instance is exhausted, i.e. when [descend](DataPath::descend()) would
+    /// be a no-op
     pub fn done(&self) -> bool {
         use Level::{Dir, File};
         match &self.level {
@@ -46,6 +70,7 @@ impl<'a> DataPath<'a> {
     fn file(&self) -> PathBuf {
         self.path.with_extension("yml")
     }
+    /// Returns the current path file stem (i.e. basename without file extension)
     pub fn file_stem(&self) -> Option<&OsStr> {
         self.path.file_stem()
     }
@@ -56,6 +81,7 @@ impl<'a> DataPath<'a> {
     fn index(&self) -> PathBuf {
         self.path.join("index.yml")
     }
+    /// Spawns a new instance with a given path suffix appended, and same data address.
     pub fn join<P: AsRef<Path>>(&self, tail: P) -> Self {
         Self {
             level: Level::File,
@@ -63,6 +89,7 @@ impl<'a> DataPath<'a> {
             address: self.address,
         }
     }
+    /// Creates a new instance from a path and data address.
     pub fn new<P: Into<PathBuf>>(path: P, address: &'a [&'a str]) -> Self {
         Self {
             address,
@@ -70,6 +97,7 @@ impl<'a> DataPath<'a> {
             path: path.into(),
         }
     }
+    /// Creates a vector of new instances, one for each file/directory at the current path.
     pub fn sub_paths(&self) -> Vec<Self> {
         fs::read_dir(&self.path).map_or_else(
             |_| vec![],
@@ -82,6 +110,7 @@ impl<'a> DataPath<'a> {
             },
         )
     }
+    /// Tries to convert the current position to a [serde_yaml::Value].
     pub fn value(&self) -> Result<serde_yaml::Value, DataResolverError> {
         match &self.level {
             Level::Dir => self.get_value(&self.index()),
