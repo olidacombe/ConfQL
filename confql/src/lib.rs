@@ -17,7 +17,7 @@
 //! use juniper::{graphql_value, EmptyMutation, EmptySubscription};
 //! use test_files::TestFiles;
 //!
-//! // In practice you'll more likely use the [graphql_schema_from_file] macro
+//! // In practice you'll more likely use the `graphql_schema_from_file` macro
 //! // but this macro is nice for tests.
 //! graphql_schema!{
 //!     type Alien {
@@ -54,7 +54,7 @@
 //! );
 //!
 //! // The `Ctx` struct has been generated for us, implementing
-//! // [juniper::Context].  All it needs to initialize is a [PathBuf]
+//! // `juniper::Context`.  All it needs to initialize is a `PathBuf`
 //! // pointing at the root of the data directory.
 //! let ctx = Ctx::from(mocks.path().to_path_buf());
 //!

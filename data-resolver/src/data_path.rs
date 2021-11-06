@@ -58,7 +58,7 @@ impl<'a> DataPath<'a> {
         }
         Some(self)
     }
-    /// Returns whether or not this instance is exhausted, i.e. when [descend] would
+    /// Returns whether or not this instance is exhausted, i.e. when [descend](DataPath::descend()) would
     /// be a no-op
     pub fn done(&self) -> bool {
         use Level::{Dir, File};
