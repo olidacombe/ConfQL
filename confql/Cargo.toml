@@ -1,6 +1,6 @@
 [package]
 name = "confql"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2018"
 description = "Procedural macro for creating GraphQL server from yaml file trees and a schema"
 license = "MIT"
@@ -12,8 +12,8 @@ name = "tests"
 path = "tests/all.rs"
 
 [dependencies]
-confql-data-resolver = { version = "0.3.0", path = "../data-resolver" }
-confql-proc-macro = { version = "0.3.0", path = "../proc-macro" }
+confql-data-resolver = { version = "0.4.0", path = "../data-resolver" }
+confql-proc-macro = { version = "0.4.0", path = "../proc-macro" }
 serde_yaml = "0.8.21"
 
 [dev-dependencies]

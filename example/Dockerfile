@@ -1,4 +1,4 @@
-FROM olidacombe/confql-example-base:0.3.0 as builder
+FROM olidacombe/confql-example-base:0.4.0 as builder
 COPY schema.gql .
 RUN cargo build --release --target x86_64-unknown-linux-musl --bin confql
 
