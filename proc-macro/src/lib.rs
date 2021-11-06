@@ -1,3 +1,4 @@
+#![deny(missing_docs, rustdoc::missing_doc_code_examples)]
 extern crate proc_macro;
 
 mod code_gen;

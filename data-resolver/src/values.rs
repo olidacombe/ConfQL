@@ -25,8 +25,13 @@ pub fn value_from_file(path: &Path) -> Result<Value, DataResolverError> {
     Ok(value)
 }
 
+/// Define methods for
+/// + merging one instance of a type into another instance of the same type
+/// + doing the above but instead under a specified key within the target instance
 pub trait Merge {
+    /// Merge another instance into self, mutating self
     fn merge(&mut self, mergee: Self) -> Result<&mut Self, DataResolverError>;
+    /// Merge another instance into self at a specified key, mutating self
     fn merge_at(&mut self, key: &str, mergee: Self) -> Result<&mut Self, DataResolverError>;
 }
 
