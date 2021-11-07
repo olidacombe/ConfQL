@@ -25,10 +25,32 @@ docker build -t my-server .
 docker run -v $(pwd)/data:/data -p 8080:8080 my-server
 ```
 
+Then query the endpoint at `127.0.0.1:8080/graphql` using your favourite GraphQL
+client or `curl`, e.g.
+
+```bash
+curl -g \
+	-X POST \
+	-H "Content-Type: application/json" \
+	-d '{"query":"query{id}"}' \
+	http://127.0.0.1:8080/graphql
+```
+
 ## Running Locally
 
 ```
-cargo run
+DATA_ROOT=data cargo run
+```
+
+Then query the endpoint at `127.0.0.1:8080/graphql` using your favourite GraphQL
+client or `curl`, e.g.
+
+```bash
+curl -g \
+	-X POST \
+	-H "Content-Type: application/json" \
+	-d '{"query":"query{id}"}' \
+	http://127.0.0.1:8080/graphql
 ```
 
 ## Environment Variables

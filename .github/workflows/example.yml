@@ -1,0 +1,53 @@
+name: Test Example
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+env:
+  TEST_TAG: confql
+  TEST_SERVER_PORT: 3000
+
+jobs:
+  example-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Build example and export to Docker
+        uses: docker/build-push-action@v2
+        with:
+          context: example
+          load: true
+          tags: ${{ env.TEST_TAG }}
+      - name: Test example
+        run: |
+          set -xeuo pipefail
+          cat << EOF > ${{ runner.temp }}/id.yml
+          ---
+          "${{ github.run_id }}"
+          EOF
+          docker run --rm \
+            -v ${{ runner.temp }}:/data \
+            -p ${{ env.TEST_SERVER_PORT }}:${{ env.TEST_SERVER_PORT }} \
+            -e PORT=${{ env.TEST_SERVER_PORT }} \
+            -d ${{ env.TEST_TAG }}
+          RESPONSE="$(curl -g \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"query":"query{id}"}' \
+            http://127.0.0.1:${{ env.TEST_SERVER_PORT }}/graphql)"
+          EXPECTED_RESPONSE='{"data":{"id":"${{ github.run_id }}"}}'
+          if [ "$RESPONSE" != "$EXPECTED_RESPONSE" ]; then
+            echo :bangbang:
+            echo "EXPECTED: $EXPECTED_RESPONSE"
+            echo :x:
+            echo "GOT: $RESPONSE"
+            echo :bangbang:
+            false
+          fi
+          echo :tada:

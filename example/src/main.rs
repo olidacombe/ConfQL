@@ -56,7 +56,7 @@ async fn main() -> io::Result<()> {
     ));
 
     log::info!(
-        "Starting webserver {} from data path {:?}",
+        "Starting GraphQL endpoint {}/graphql from data path {:?}",
         *ADDR,
         *DATA_ROOT
     );
