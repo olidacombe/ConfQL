@@ -1,4 +1,4 @@
-# confql-data-resolver v0.4.0
+# confql-data-resolver v0.4.1
 
 Filesystem yaml data resolvers.
 

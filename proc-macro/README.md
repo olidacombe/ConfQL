@@ -1,4 +1,4 @@
-# confql-proc-macro v0.4.0
+# confql-proc-macro v0.4.1
 
 Some procedural macros taking a GraphQL schema, and generating
 structs for all types in the schema with data resolution impls,
