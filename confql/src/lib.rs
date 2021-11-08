@@ -1,4 +1,4 @@
-//! ConfQL
+//! # ConfQL
 //!
 //! This is intended as a very low-friction means of turning structured yaml into a [GraphQL](https://graphql.org/) service.
 //!
