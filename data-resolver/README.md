@@ -2,6 +2,6 @@
 
 Filesystem yaml data resolvers.
 
-> See the [source repo](https://github.com/olidacombe/confql) for more detailed information.
+> See the [confql source repo](https://github.com/olidacombe/confql) for more detailed information.
 
 License: MIT

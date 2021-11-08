@@ -5,7 +5,7 @@ expand:
 	cargo expand --lib --tests
 
 readme-%:
-	cd $* && cargo readme > README.md
+	cd $* && cargo readme > README.md && git add README.md
 
 readme:
 	make readme-confql
