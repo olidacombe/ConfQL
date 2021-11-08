@@ -1,5 +1,5 @@
 {{readme}}
 
-Current version: `{{version}}`
+Current version: {{version}}
 
 License: {{license}}

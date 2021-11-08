@@ -23,3 +23,8 @@ juniper = "0.15.7"
 serde = "1.0.130"
 test-files = "0.1.0"
 trybuild = "1.0.52"
+
+[dev-dependencies.cargo-husky]
+version = "1"
+default-features = false
+features = ["user-hooks"]
