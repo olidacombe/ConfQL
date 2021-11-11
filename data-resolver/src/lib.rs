@@ -104,9 +104,9 @@ pub trait ResolveValue {
     ) -> Result<(), DataResolverError> {
         Ok(())
     }
-    /// Resolve data from the given [DataPath].  The default implementation should be sufficient
-    /// in most cases.
-    fn resolve_value(data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
+    /// Resolve data from the given [DataPath].  This provides the default implementation
+    /// suitable for most cases.
+    fn default_resolve_value(data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
         let mut value = data_path.value().unwrap_or(serde_yaml::Value::Null);
         if data_path.done() {
             Self::merge_properties(&mut value, &data_path)?;
@@ -116,6 +116,18 @@ pub trait ResolveValue {
             }
         }
         Ok(value)
+    }
+    /// Create a base value from an identifier.  Useful when building an array, where
+    /// some fields are defined with `@confql(arrayIdentifier: true)` in the GraphQL
+    /// schema.  Then you can pre-populate said fields with a file name or mapping
+    /// key.
+    fn init_with_identifier(_identifier: serde_yaml::Value) -> serde_yaml::Value {
+        serde_yaml::Value::Null
+    }
+    /// Resolve data from the given [DataPath].  The default implementation should be sufficient
+    /// in most cases.
+    fn resolve_value(data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
+        Self::default_resolve_value(data_path)
     }
     /// Resolve a starting value before data acquisition from actual file
     /// content.  [Null](serde_yaml::Value::Null) (default impl) is a good starting value in most cases,
@@ -162,6 +174,21 @@ impl<T: ResolveValue> ResolveValue for Vec<T> {
         )?;
         Ok(())
     }
+    fn resolve_value(data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
+        use serde_yaml::Value::{Mapping, Sequence};
+        let v = Self::default_resolve_value(data_path)?;
+        match v {
+            Mapping(map) => Ok(Sequence(
+                map.into_iter()
+                    .filter_map(|(k, v)| {
+                        let mut value = Self::init_with_identifier(k);
+                        value.merge(v).ok().map(|merged| merged.take())
+                    })
+                    .collect(),
+            )),
+            _ => Ok(v),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -200,6 +227,12 @@ mod tests {
     }
 
     impl ResolveValue for MyOtherObj {
+        fn init_with_identifier(identifier: serde_yaml::Value) -> serde_yaml::Value {
+            use serde_yaml::{Mapping, Value};
+            let mut mapping = Mapping::new();
+            mapping.insert(Value::from("alias"), identifier);
+            Value::Mapping(mapping)
+        }
         fn merge_properties(
             value: &mut serde_yaml::Value,
             data_path: &DataPath,
@@ -360,6 +393,46 @@ mod tests {
                   alias: Obbo
                 - id: 2
                   alias: Ali
+            "},
+        );
+        let v: Query = mocks.resolver().get(&[])?;
+        assert_eq!(
+            v,
+            Query {
+                my_obj: MyObj {
+                    id: 1,
+                    name: "Objy".to_owned()
+                },
+                my_list: vec![
+                    MyOtherObj {
+                        id: 1,
+                        alias: "Obbo".to_owned(),
+                    },
+                    MyOtherObj {
+                        id: 2,
+                        alias: "Ali".to_owned(),
+                    },
+                ]
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_list_from_map() -> Result<()> {
+        let mocks = TestFiles::new();
+        mocks.file(
+            "index.yml",
+            indoc! {"
+                ---
+                my_obj:
+                    id: 1
+                    name: Objy
+                my_list:
+                    Obbo:
+                        id: 1
+                    Ali:
+                        id: 2
             "},
         );
         let v: Query = mocks.resolver().get(&[])?;

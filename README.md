@@ -132,7 +132,7 @@ teams
 └── sre.yml
 ```
 
-If you want the filename mapped to a field in your GraphQL type, you can use the `@confql(arrayFilename: true)` directive. E.g.
+If you want the filename mapped to a field in your GraphQL type, you can use the `@confql(arrayIdentifier: true)` directive. E.g.
 
 ```gql
 type User {
@@ -141,7 +141,7 @@ type User {
 }
 
 type Team {
-  name: String! @confql(arrayFilename: true)
+  name: String! @confql(arrayIdentifier: true)
   members: [User!]!
 }
 

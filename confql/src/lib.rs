@@ -21,7 +21,7 @@
 //! // but this macro is nice for tests.
 //! graphql_schema!{
 //!     type Alien {
-//!         name: String! @confql(arrayFilename: true)
+//!         name: String! @confql(arrayIdentifier: true)
 //!         size: Float!
 //!     }
 //!

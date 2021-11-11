@@ -33,6 +33,8 @@ pub trait Merge {
     fn merge(&mut self, mergee: Self) -> Result<&mut Self, DataResolverError>;
     /// Merge another instance into self at a specified key, mutating self
     fn merge_at(&mut self, key: &str, mergee: Self) -> Result<&mut Self, DataResolverError>;
+    /// Take ownership via mutable reference
+    fn take(&mut self) -> Self;
 }
 
 macro_rules! merge_compat_err {
@@ -117,6 +119,9 @@ impl Merge for serde_yaml::Value {
             }
             _ => Err(DataResolverError::CannotMergeIntoNonMapping(self.clone())),
         }
+    }
+    fn take(&mut self) -> Self {
+        std::mem::replace(self, serde_yaml::Value::Null)
     }
 }
 

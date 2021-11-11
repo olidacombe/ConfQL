@@ -21,21 +21,16 @@ graphql_schema! {
 
 fn main() -> Result<()> {
     let mocks = TestFiles::new();
-    mocks
-        .file(
-            "things/widget.yml",
-            indoc! {"
+    mocks.file(
+        "things/index.yml",
+        indoc! {"
                 ---
-                size: 1.1
+                widget:
+                    size: 1.1
+                dongle:
+                    size: 2.2
             "},
-        )
-        .file(
-            "things/dongle.yml",
-            indoc! {"
-                ---
-                size: 2.2
-            "},
-        );
+    );
 
     let ctx = Ctx::from(mocks.path().to_path_buf());
 

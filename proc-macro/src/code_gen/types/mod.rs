@@ -17,11 +17,11 @@ pub struct Object<'a, T: query::Text<'a>> {
 }
 
 impl<'a, T: query::Text<'a>> Object<'a, T> {
-    fn array_filename_fields(&self) -> Option<Vec<String>> {
+    fn array_identifier_fields(&self) -> Option<Vec<String>> {
         let fields: Vec<String> = self
             .fields
             .iter()
-            .filter_map(|f| match f.directive("arrayFilename") {
+            .filter_map(|f| match f.directive("arrayIdentifier") {
                 Some(query::Value::Boolean(true)) => Some(f.name.as_ref().to_owned()),
                 _ => None,
             })
@@ -89,19 +89,24 @@ where
                         Ok(())
                     }
                 };
-                if let Some(filename_fields) = obj.array_filename_fields() {
+                if let Some(identifier_fields) = obj.array_identifier_fields() {
                     resolve_value_methods.extend(quote! {
-                        fn resolve_vec_base(data_path: &DataPath) -> serde_yaml::Value {
+                        fn init_with_identifier(identifier: serde_yaml::Value) -> serde_yaml::Value {
                             use serde_yaml::{Mapping, Value};
                             let mut mapping = Mapping::new();
-                            if let Some(file_stem) = data_path.file_stem() {
-                                if let Some(file_stem) = file_stem.to_str() {
-                                    for field in [#(#filename_fields),*] {
-                                        mapping.insert(Value::from(field), Value::from(file_stem));
-                                    }
-                                }
+                            for field in [#(#identifier_fields),*] {
+                                mapping.insert(Value::from(field), identifier.clone());
                             }
                             Value::Mapping(mapping)
+                        }
+                        fn resolve_vec_base(data_path: &DataPath) -> serde_yaml::Value {
+                            use serde_yaml::{Mapping, Value};
+                            if let Some(file_stem) = data_path.file_stem() {
+                                if let Some(file_stem) = file_stem.to_str() {
+                                    return Self::init_with_identifier(Value::from(file_stem));
+                                }
+                            }
+                            Value::Null
                         }
                     })
                 }
