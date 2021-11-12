@@ -104,19 +104,6 @@ pub trait ResolveValue {
     ) -> Result<&'a mut serde_yaml::Value, DataResolverError> {
         Ok(value)
     }
-    /// Resolve data from the given [DataPath].  This provides the default implementation
-    /// suitable for most cases.
-    fn default_resolve_value(data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
-        let mut value = data_path.value().unwrap_or(serde_yaml::Value::Null);
-        if data_path.done() {
-            Self::merge_properties(&mut value, &data_path)?;
-        } else if let Some(data_path) = data_path.descend() {
-            if let Ok(mergee) = Self::resolve_value(data_path) {
-                value.merge(mergee)?;
-            }
-        }
-        Ok(value)
-    }
     /// Create a base value from an identifier.  Useful when building an array, where
     /// some fields are defined with `@confql(arrayIdentifier: true)` in the GraphQL
     /// schema.  Then you can pre-populate said fields with a file name or mapping
@@ -127,7 +114,15 @@ pub trait ResolveValue {
     /// Resolve data from the given [DataPath].  The default implementation should be sufficient
     /// in most cases.
     fn resolve_value(data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
-        Self::default_resolve_value(data_path)
+        let mut value = data_path.value().unwrap_or(serde_yaml::Value::Null);
+        if data_path.done() {
+            Self::merge_properties(&mut value, &data_path)?;
+        } else if let Some(data_path) = data_path.descend() {
+            if let Ok(mergee) = Self::resolve_value(data_path) {
+                value.merge(mergee)?;
+            }
+        }
+        Ok(value)
     }
     /// Resolve a starting value before data acquisition from actual file
     /// content.  [Null](serde_yaml::Value::Null) (default impl) is a good starting value in most cases,
