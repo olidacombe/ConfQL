@@ -121,6 +121,8 @@ impl Merge for serde_yaml::Value {
             _ => Err(DataResolverError::CannotMergeIntoNonMapping(self.clone())),
         }
     }
+    /// Returns owned [serde_yaml::Value], leaving [serde_yaml::Value::Null] in
+    /// its place.
     fn take(&mut self) -> Self {
         std::mem::replace(self, serde_yaml::Value::Null)
     }
