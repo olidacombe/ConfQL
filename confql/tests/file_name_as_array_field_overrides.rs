@@ -6,8 +6,8 @@ use test_files::TestFiles;
 
 graphql_schema! {
     type Thing {
-        name: String @confql(arrayFilename: true)
-        alias: String @confql(arrayFilename: true)
+        name: String @confql(arrayIdentifier: true)
+        alias: String @confql(arrayIdentifier: true)
         size: Float!
     }
 

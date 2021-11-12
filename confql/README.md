@@ -21,7 +21,7 @@ use test_files::TestFiles;
 // but this macro is nice for tests.
 graphql_schema!{
     type Alien {
-        name: String! @confql(arrayFilename: true)
+        name: String! @confql(arrayIdentifier: true)
         size: Float!
     }
 
@@ -89,6 +89,6 @@ assert_eq!(
 );
 ```
 
-Current version: `0.4.1`
+Current version: `0.5.0`
 
 License: MIT

@@ -120,7 +120,7 @@ to get
 
 ## Special Directives
 
-The yaml file use case threw up a common pattern where there's an array of objects represented by a directory of yaml files, each representing one object, each file name essentially representing a field.
+The yaml file use case threw up a common pattern where there's an _array_ of objects represented by a _directory_ of yaml files, or a _mapping_ of objects, where each _filename_ or _key_ respectively logically represents a unique identifier field within each object.
 
 E.g.
 
@@ -132,7 +132,7 @@ teams
 └── sre.yml
 ```
 
-If you want the filename mapped to a field in your GraphQL type, you can use the `@confql(arrayFilename: true)` directive. E.g.
+If you want the filename mapped to a field in your GraphQL type, you can use the `@confql(arrayIdentifier: true)` directive. E.g.
 
 ```gql
 type User {
@@ -141,7 +141,7 @@ type User {
 }
 
 type Team {
-  name: String! @confql(arrayFilename: true)
+  name: String! @confql(arrayIdentifier: true)
   members: [User!]!
 }
 
@@ -154,7 +154,7 @@ schema {
 }
 ```
 
-Then, in the above case, the strings `backend`, `frontend`, `qa`, `sre` would get mapped to the `name` field of each `Team`.
+Then, in the above case, the strings `backend`, `frontend`, `qa`, `sre` would get mapped to the `name` field of each `Team` in `teams`.
 
 This also works with directory names if you've broken your data up further, e.g.
 
@@ -166,6 +166,22 @@ teams
 ├── frontend.yml
 ├── qa.yml
 └── sre.yml
+```
+
+Similarly, you can get the same effect from a mapping:
+
+```yml
+---
+# teams.yml
+backend:
+  members:
+  - name: Bill
+    email: bill@ho.me
+frontend:
+  members:
+  - name: Will
+    email: will@ho.me
+# etc.
 ```
 
 ## How Does it Work?

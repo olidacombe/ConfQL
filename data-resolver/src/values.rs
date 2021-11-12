@@ -28,11 +28,14 @@ pub fn value_from_file(path: &Path) -> Result<Value, DataResolverError> {
 /// Define methods for
 /// * merging one instance of a type into another instance of the same type
 /// * doing the above but instead under a specified key within the target instance
+/// * taking value from a mutable ref
 pub trait Merge {
     /// Merge another instance into self, mutating self
     fn merge(&mut self, mergee: Self) -> Result<&mut Self, DataResolverError>;
     /// Merge another instance into self at a specified key, mutating self
     fn merge_at(&mut self, key: &str, mergee: Self) -> Result<&mut Self, DataResolverError>;
+    /// Take ownership via mutable reference
+    fn take(&mut self) -> Self;
 }
 
 macro_rules! merge_compat_err {
@@ -117,6 +120,11 @@ impl Merge for serde_yaml::Value {
             }
             _ => Err(DataResolverError::CannotMergeIntoNonMapping(self.clone())),
         }
+    }
+    /// Returns owned [serde_yaml::Value], leaving [serde_yaml::Value::Null] in
+    /// its place.
+    fn take(&mut self) -> Self {
+        std::mem::replace(self, serde_yaml::Value::Null)
     }
 }
 
