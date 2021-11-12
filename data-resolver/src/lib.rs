@@ -14,6 +14,9 @@ pub use values::Merge;
 /// Data resolution and value manipulation errors
 #[derive(Error, Debug)]
 pub enum DataResolverError {
+    /// Merge attempted into a non-mapping (i.e. primitive or list)
+    #[error("Cannot merge into non-mapping `{0:?}`")]
+    CannotMergeIntoNonMapping(serde_yaml::Value),
     /// Merge attempted of two types with no obvious general method of doing so
     #[error("Incompatible merge `{dst:?}` <- `{src:?}`")]
     IncompatibleYamlMerge {
@@ -22,18 +25,15 @@ pub enum DataResolverError {
         /// Destination value into which we were attempting to merge source
         dst: serde_yaml::Value,
     },
-    /// Merge attempted into a non-mapping (i.e. primitive or list)
-    #[error("Cannot merge into non-mapping `{0:?}`")]
-    CannotMergeIntoNonMapping(serde_yaml::Value),
+    /// [std::io::Error]
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
     /// Attempt made to access data at a non-existing key within a mapping
     #[error("Key `{0}` not found")]
     KeyNotFound(String),
     /// [serde_yaml::Error]
     #[error(transparent)]
     YamlError(#[from] serde_yaml::Error),
-    /// [std::io::Error]
-    #[error(transparent)]
-    IOError(#[from] std::io::Error),
 }
 
 /// Clients interact with this struct for data resolution operations.
@@ -80,17 +80,17 @@ impl From<PathBuf> for DataResolver {
 /// }
 ///
 /// impl ResolveValue for MyObj {
-///     fn merge_properties(
-///         value: &mut serde_yaml::Value,
+///     fn merge_properties<'a>(
+///         value: &'a mut serde_yaml::Value,
 ///         data_path: &DataPath,
-///     ) -> Result<(), DataResolverError> {
+///     ) -> Result<&'a mut serde_yaml::Value, DataResolverError> {
 ///         if let Ok(id) = i32::resolve_value(data_path.join("id")) {
 ///             value.merge_at("id", id)?;
 ///         }
 ///         if let Ok(name) = String::resolve_value(data_path.join("name")) {
 ///             value.merge_at("name", name)?;
 ///         }
-///         Ok(())
+///         Ok(value)
 ///     }
 /// }
 /// ```
@@ -98,11 +98,11 @@ impl From<PathBuf> for DataResolver {
 /// In fact, that's what a procedural macro in the codebase does for you.
 pub trait ResolveValue {
     /// Implement this for structs as described in [ResolveValue].
-    fn merge_properties(
-        _value: &mut serde_yaml::Value,
+    fn merge_properties<'a>(
+        value: &'a mut serde_yaml::Value,
         _data_path: &DataPath,
-    ) -> Result<(), DataResolverError> {
-        Ok(())
+    ) -> Result<&'a mut serde_yaml::Value, DataResolverError> {
+        Ok(value)
     }
     /// Resolve data from the given [DataPath].  This provides the default implementation
     /// suitable for most cases.
@@ -152,41 +152,39 @@ impl<T: ResolveValue> ResolveValue for Option<T> {
     }
 }
 impl<T: ResolveValue> ResolveValue for Vec<T> {
-    fn merge_properties(
-        value: &mut serde_yaml::Value,
+    fn merge_properties<'a>(
+        value: &'a mut serde_yaml::Value,
         data_path: &DataPath,
-    ) -> Result<(), DataResolverError> {
-        value.merge(
-            data_path
-                .sub_paths()
-                .into_iter()
-                .filter_map(|dp| {
-                    let mut base_value = T::resolve_vec_base(&dp);
-                    T::resolve_value(dp)
-                        .ok()
-                        .map(|v| match base_value.merge(v) {
-                            Ok(_) => Some(base_value),
-                            _ => None,
-                        })
-                })
-                .map(|v| v.unwrap())
-                .collect(),
-        )?;
-        Ok(())
-    }
-    fn resolve_value(data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
+    ) -> Result<&'a mut serde_yaml::Value, DataResolverError> {
         use serde_yaml::Value::{Mapping, Sequence};
-        let v = Self::default_resolve_value(data_path)?;
-        match v {
-            Mapping(map) => Ok(Sequence(
-                map.into_iter()
-                    .filter_map(|(k, v)| {
-                        let mut value = Self::init_with_identifier(k);
-                        value.merge(v).ok().map(|merged| merged.take())
+        match value {
+            Mapping(map) => {
+                *value = Sequence(
+                    map.into_iter()
+                        .filter_map(|(k, v)| {
+                            let mut value = T::init_with_identifier(k.clone());
+                            value.merge(v.take()).ok().map(|merged| merged.take())
+                        })
+                        .collect(),
+                );
+                Ok(value)
+            }
+            _ => value.merge(
+                data_path
+                    .sub_paths()
+                    .into_iter()
+                    .filter_map(|dp| {
+                        let mut base_value = T::resolve_vec_base(&dp);
+                        T::resolve_value(dp)
+                            .ok()
+                            .map(|v| match base_value.merge(v) {
+                                Ok(_) => Some(base_value),
+                                _ => None,
+                            })
                     })
+                    .map(|v| v.unwrap())
                     .collect(),
-            )),
-            _ => Ok(v),
+            ),
         }
     }
 }
@@ -206,17 +204,17 @@ mod tests {
     }
 
     impl ResolveValue for MyObj {
-        fn merge_properties(
-            value: &mut serde_yaml::Value,
+        fn merge_properties<'a>(
+            value: &'a mut serde_yaml::Value,
             data_path: &DataPath,
-        ) -> Result<(), DataResolverError> {
+        ) -> Result<&'a mut serde_yaml::Value, DataResolverError> {
             if let Ok(id) = i32::resolve_value(data_path.join("id")) {
                 value.merge_at("id", id)?;
             }
             if let Ok(name) = String::resolve_value(data_path.join("name")) {
                 value.merge_at("name", name)?;
             }
-            Ok(())
+            Ok(value)
         }
     }
 
@@ -233,17 +231,17 @@ mod tests {
             mapping.insert(Value::from("alias"), identifier);
             Value::Mapping(mapping)
         }
-        fn merge_properties(
-            value: &mut serde_yaml::Value,
+        fn merge_properties<'a>(
+            value: &'a mut serde_yaml::Value,
             data_path: &DataPath,
-        ) -> Result<(), DataResolverError> {
+        ) -> Result<&'a mut serde_yaml::Value, DataResolverError> {
             if let Ok(id) = i32::resolve_value(data_path.join("id")) {
                 value.merge_at("id", id)?;
             }
             if let Ok(alias) = String::resolve_value(data_path.join("alias")) {
                 value.merge_at("alias", alias)?;
             }
-            Ok(())
+            Ok(value)
         }
     }
 
@@ -254,17 +252,17 @@ mod tests {
     }
 
     impl ResolveValue for Query {
-        fn merge_properties(
-            value: &mut serde_yaml::Value,
+        fn merge_properties<'a>(
+            value: &'a mut serde_yaml::Value,
             data_path: &DataPath,
-        ) -> Result<(), DataResolverError> {
+        ) -> Result<&'a mut serde_yaml::Value, DataResolverError> {
             if let Ok(my_obj) = MyObj::resolve_value(data_path.join("my_obj")) {
                 value.merge_at("my_obj", my_obj)?;
             }
             if let Ok(my_list) = Vec::<MyOtherObj>::resolve_value(data_path.join("my_list")) {
                 value.merge_at("my_list", my_list)?;
             }
-            Ok(())
+            Ok(value)
         }
     }
 
@@ -425,35 +423,25 @@ mod tests {
             "index.yml",
             indoc! {"
                 ---
-                my_obj:
+                Obbo:
                     id: 1
-                    name: Objy
-                my_list:
-                    Obbo:
-                        id: 1
-                    Ali:
-                        id: 2
+                Ali:
+                    id: 2
             "},
         );
-        let v: Query = mocks.resolver().get(&[])?;
+        let v: Vec<MyOtherObj> = mocks.resolver().get(&[])?;
         assert_eq!(
             v,
-            Query {
-                my_obj: MyObj {
+            vec![
+                MyOtherObj {
                     id: 1,
-                    name: "Objy".to_owned()
+                    alias: "Obbo".to_owned(),
                 },
-                my_list: vec![
-                    MyOtherObj {
-                        id: 1,
-                        alias: "Obbo".to_owned(),
-                    },
-                    MyOtherObj {
-                        id: 2,
-                        alias: "Ali".to_owned(),
-                    },
-                ]
-            }
+                MyOtherObj {
+                    id: 2,
+                    alias: "Ali".to_owned(),
+                },
+            ]
         );
         Ok(())
     }

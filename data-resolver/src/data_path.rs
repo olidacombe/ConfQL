@@ -24,12 +24,14 @@ use std::path::{Path, PathBuf};
 use super::values::{take_sub_value_at_address, value_from_file};
 use super::DataResolverError;
 
+#[derive(Debug)]
 enum Level {
     Dir,
     File,
 }
 
 /// Represents a position in the data directory when resolving data.
+#[derive(Debug)]
 pub struct DataPath<'a> {
     level: Level,
     path: PathBuf,

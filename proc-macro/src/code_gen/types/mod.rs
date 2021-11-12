@@ -81,12 +81,12 @@ where
                 let fields = obj.fields.iter();
                 let merge_lines = obj.fields.iter().map(|f| f.merge_line());
                 let mut resolve_value_methods = quote! {
-                    fn merge_properties(
-                        value: &mut serde_yaml::Value,
+                    fn merge_properties<'a>(
+                        value: &'a mut serde_yaml::Value,
                         data_path: &DataPath
-                    ) -> Result<(), DataResolverError> {
+                    ) -> Result<&'a mut serde_yaml::Value, DataResolverError> {
                         #(#merge_lines)*
-                        Ok(())
+                        Ok(value)
                     }
                 };
                 if let Some(identifier_fields) = obj.array_identifier_fields() {
