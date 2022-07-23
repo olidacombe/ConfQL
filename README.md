@@ -1,17 +1,16 @@
 # ConfQL
 
-This is intended as a very low-friction means of turning structured yaml into a [GraphQL](https://graphql.org/) service.  If you have a directory containing structured yaml, I want it to be as simple as this:
+This is intended as a very low-friction means of turning structured yaml into a [GraphQL](https://graphql.org/) service. If you have a directory containing structured yaml, I want it to be as simple as this:
 
-+ create a [schema](https://graphql.org/learn/schema/) file formalizing your data structure
-+ drop in a [Dockerfile](example/Dockerfile)
-+ build a container and run
+- create a [schema](https://graphql.org/learn/schema/) file formalizing your data structure
+- drop in a [Dockerfile](example/Dockerfile)
+- build a container and run
 
 See the [example](example) for a quick start.
 
 ### Motivation
 
-I deal with _infrastructure as code_ a lot, and have found myself writing boilerplate to consume a repo full of yaml for various purposes.  It makes more sense to me to expose the whole repo as a GraphQL service, and pull out what I need using a query (say with a terraform [data provider](https://registry.terraform.io/providers/sullivtr/graphql/latest/docs/data-sources/query)).  This seems like something that could be useful in other contexts.
-
+I deal with _infrastructure as code_ a lot, and have found myself writing boilerplate to consume a repo full of yaml for various purposes. It makes more sense to me to expose the whole repo as a GraphQL service, and pull out what I need using a query (say with a terraform [data provider](https://registry.terraform.io/providers/sullivtr/graphql/latest/docs/data-sources/query)). This seems like something that could be useful in other contexts.
 
 ## What Does it Do?
 
@@ -19,25 +18,25 @@ Suppose you have this schema:
 
 ```gql
 type A {
-	b: B!
+  b: B!
 }
 
 type B {
-	c: C!
+  c: C!
 }
 
 type C {
-	id: Int!
-	name: String!
-	tags: [String!]
+  id: Int!
+  name: String!
+  tags: [String!]
 }
 
 type Query {
-    a: A!
+  a: A!
 }
 
 schema {
-    query: Query
+  query: Query
 }
 ```
 
@@ -104,13 +103,7 @@ to get
         "c": {
           "id": 14,
           "name": "Biggy",
-          "tags": [
-            "Boss",
-            "Big Shot",
-            "Winner",
-            "Inspiration",
-            "Mentor"
-          ]
+          "tags": ["Boss", "Big Shot", "Winner", "Inspiration", "Mentor"]
         }
       }
     }
@@ -119,6 +112,8 @@ to get
 ```
 
 ## Special Directives
+
+### `arrayIdentifier`
 
 The yaml file use case threw up a common pattern where there's an _array_ of objects represented by a _directory_ of yaml files, or a _mapping_ of objects, where each _filename_ or _key_ respectively logically represents a unique identifier field within each object.
 
@@ -150,7 +145,7 @@ type Query {
 }
 
 schema {
-    query: Query
+  query: Query
 }
 ```
 
@@ -175,15 +170,39 @@ Similarly, you can get the same effect from a mapping:
 # teams.yml
 backend:
   members:
-  - name: Bill
-    email: bill@ho.me
+    - name: Bill
+      email: bill@ho.me
 frontend:
   members:
-  - name: Will
-    email: will@ho.me
+    - name: Will
+      email: will@ho.me
 # etc.
+```
+
+### otherThing
+
+```gql
+type User {
+  name: String!
+  email: String!
+}
+
+type Team {
+  name: String! @confql(arrayIdentifier: true)
+  members: [User!]!
+}
+
+type Query {
+  teams($email: String): [Team!]!
+  user($email: String!): User
+}
+
+schema {
+  query: Query
+}
 ```
 
 ## How Does it Work?
 
-At its heart, this is a [procedural macro](https://doc.rust-lang.org/reference/procedural-macros.html) which takes a path to a schema file, and at compile-time generates a [juniper](https://graphql-rust.github.io/juniper/master/index.html) server with all necessary functionality to resolve data from the filesystem adhering to the given schema.  It is draws much inspiration from, and is much more basic than [juniper-from-schema](https://github.com/davidpdrsn/juniper-from-schema).
+At its heart, this is a [procedural macro](https://doc.rust-lang.org/reference/procedural-macros.html) which takes a path to a schema file, and at compile-time generates a [juniper](https://graphql-rust.github.io/juniper/master/index.html) server with all necessary functionality to resolve data from the filesystem adhering to the given schema. It is draws much inspiration from, and is much more basic than [juniper-from-schema](https://github.com/davidpdrsn/juniper-from-schema).
+
