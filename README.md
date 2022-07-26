@@ -193,8 +193,10 @@ type Team {
 }
 
 type Query {
-  teams($email: String): [Team!]!
-  user($email: String!): User
+  teams: [Team!]!
+  users: [User!]!
+  user($email: String!): User @confql(findIn: "users", by: "email")
+  teamsOf($email: String!): [Team!]! @confql(filter: "teams", by: "members.email")
 }
 
 schema {
