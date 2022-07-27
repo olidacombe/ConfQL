@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::iter::FromIterator;
 use std::rc::Rc;
 
 use super::values::{Value, ValueFilter};
@@ -14,7 +15,15 @@ pub trait FilterMap {
 }
 
 impl<'a> FilterMap for Filters<'a> {
-    fn descend(&mut self, head: &str) {}
+    fn descend(&mut self, head: &str) {
+        self.retain(|k, _| k.first() == Some(&head));
+        let mut new = Self::from_iter(self.into_iter().filter_map(|(k, v)| {
+            k.split_first()
+                .map(|(_, tail)| tail)
+                .map(|tail| (tail, v.clone())) // should this be some kind of .take() instead of clone()?
+        }));
+        std::mem::swap(self, &mut new);
+    }
 }
 
 #[cfg(test)]
