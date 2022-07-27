@@ -2,8 +2,7 @@ use std::collections::HashMap;
 use std::iter::FromIterator;
 use std::rc::Rc;
 
-use super::values::{Value, ValueFilter};
-use super::DataResolverError;
+use super::values::Value;
 
 type Filter<'a> = Rc<dyn Fn(&'a Value) -> bool>;
 pub type Filters<'a> = HashMap<&'a [&'a str], Filter<'a>>;
@@ -16,6 +15,7 @@ pub trait FilterMap {
 
 impl<'a> FilterMap for Filters<'a> {
     fn descend(&mut self, head: &str) {
+        // todo: this in one pass
         self.retain(|k, _| k.first() == Some(&head));
         let mut new = Self::from_iter(self.into_iter().filter_map(|(k, v)| {
             k.split_first()
