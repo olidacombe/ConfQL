@@ -179,7 +179,7 @@ frontend:
 # etc.
 ```
 
-### otherThing
+### Filtered Queries
 
 ```gql
 type User {
@@ -206,5 +206,4 @@ schema {
 
 ## How Does it Work?
 
-At its heart, this is a [procedural macro](https://doc.rust-lang.org/reference/procedural-macros.html) which takes a path to a schema file, and at compile-time generates a [juniper](https://graphql-rust.github.io/juniper/master/index.html) server with all necessary functionality to resolve data from the filesystem adhering to the given schema. It is draws much inspiration from, and is much more basic than [juniper-from-schema](https://github.com/davidpdrsn/juniper-from-schema).
-
+At its heart, this is a [procedural macro](https://doc.rust-lang.org/reference/procedural-macros.html) which takes a path to a schema file, and at compile-time generates a [juniper](https://graphql-rust.github.io/juniper/master/index.html) server with all necessary functionality to resolve data from the filesystem adhering to the given schema. It draws much inspiration from, and is much more basic than [juniper-from-schema](https://github.com/davidpdrsn/juniper-from-schema).

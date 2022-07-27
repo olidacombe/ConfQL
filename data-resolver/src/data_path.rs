@@ -17,11 +17,13 @@
 //! - merge all data from `a/b/c/index.yml`
 //!
 //! [DataPath] provides a simple means for performing this process.
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
-use super::values::{take_sub_value_at_address, value_from_file};
+use super::values::{take_sub_value_at_address, value_from_file, ValueFilter};
 use super::DataResolverError;
 
 enum Level {
@@ -29,11 +31,21 @@ enum Level {
     File,
 }
 
+#[derive(Clone)]
+struct Filters<'a>(HashMap<&'a [&'a str], Rc<dyn ValueFilter>>);
+
+impl<'a> Filters<'a> {
+    fn new() -> Self {
+        Self(HashMap::new())
+    }
+}
+
 /// Represents a position in the data directory when resolving data.
 pub struct DataPath<'a> {
     level: Level,
     path: PathBuf,
     address: &'a [&'a str],
+    filters: Filters<'a>,
 }
 
 impl<'a> DataPath<'a> {
@@ -87,6 +99,7 @@ impl<'a> DataPath<'a> {
             level: Level::File,
             path: self.path.join(tail),
             address: self.address,
+            filters: self.filters.clone(),
         }
     }
     /// Creates a new instance from a path and data address.
@@ -95,6 +108,7 @@ impl<'a> DataPath<'a> {
             address,
             level: Level::Dir,
             path: path.into(),
+            filters: Filters::new(),
         }
     }
     /// Creates a vector of new instances, one for each file/directory at the current path.

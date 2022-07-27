@@ -4,6 +4,10 @@ use std::path::Path;
 
 use super::DataResolverError;
 
+pub trait ValueFilter: Fn(&Value) -> bool {}
+
+impl<T> ValueFilter for T where T: Fn(&Value) -> bool {}
+
 pub fn take_sub_value_at_address(
     value: &mut Value,
     address: &[&str],
