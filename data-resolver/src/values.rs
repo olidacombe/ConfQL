@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use serde_yaml::Value;
+pub use serde_yaml::Value;
 use std::path::Path;
 
 use super::DataResolverError;

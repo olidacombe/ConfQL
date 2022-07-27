@@ -8,6 +8,7 @@ use thiserror::Error;
 
 mod data_path;
 pub use data_path::DataPath;
+mod filters;
 mod values;
 pub use values::Merge;
 

@@ -17,27 +17,17 @@
 //! - merge all data from `a/b/c/index.yml`
 //!
 //! [DataPath] provides a simple means for performing this process.
-use std::collections::HashMap;
+use super::filters::Filters;
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 
-use super::values::{take_sub_value_at_address, value_from_file, ValueFilter};
+use super::values::{take_sub_value_at_address, value_from_file};
 use super::DataResolverError;
 
 enum Level {
     Dir,
     File,
-}
-
-#[derive(Clone)]
-struct Filters<'a>(HashMap<&'a [&'a str], Rc<dyn ValueFilter>>);
-
-impl<'a> Filters<'a> {
-    fn new() -> Self {
-        Self(HashMap::new())
-    }
 }
 
 /// Represents a position in the data directory when resolving data.
@@ -62,6 +52,7 @@ impl<'a> DataPath<'a> {
             }
             Dir => {
                 if let Some((head, tail)) = self.address.split_first() {
+                    self.filters.descend(&head);
                     self.path.push(head);
                     self.address = tail;
                     self.level = File;
