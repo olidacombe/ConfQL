@@ -8,12 +8,18 @@ type Filter<'a> = Rc<dyn Fn(&'a Value) -> bool>;
 pub type Filters<'a> = HashMap<&'a [&'a str], Filter<'a>>;
 
 pub trait FilterMap {
+    /// * Return `true` if all filters are satisfied
+    /// * Return `false` otherwise
+    fn verify(&self, value: &Value) -> bool;
     /// * Evicts entries whose address does not begin with `head`
     /// * Pops head from remaining entries, since we know we won't be interested in that filter again
     fn descend(&mut self, head: &str);
 }
 
 impl<'a> FilterMap for Filters<'a> {
+    fn verify(&self, value: &Value) -> bool {
+        true
+    }
     fn descend(&mut self, head: &str) {
         // todo: this in one pass
         self.retain(|k, _| k.first() == Some(&head));

@@ -26,6 +26,9 @@ pub enum DataResolverError {
         /// Destination value into which we were attempting to merge source
         dst: serde_yaml::Value,
     },
+    /// Value filtered by a rule
+    #[error("Value filtered")]
+    Filtered,
     /// [std::io::Error]
     #[error(transparent)]
     IOError(#[from] std::io::Error),

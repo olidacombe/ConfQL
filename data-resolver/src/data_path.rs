@@ -52,7 +52,7 @@ impl<'a> DataPath<'a> {
             }
             Dir => {
                 if let Some((head, tail)) = self.address.split_first() {
-                    self.filters.descend(&head);
+                    self.filters.descend(head);
                     self.path.push(head);
                     self.address = tail;
                     self.level = File;
@@ -79,7 +79,12 @@ impl<'a> DataPath<'a> {
     }
     fn get_value(&self, path: &Path) -> Result<serde_yaml::Value, DataResolverError> {
         let mut value = value_from_file(path)?;
-        take_sub_value_at_address(&mut value, self.address)
+        // TODO, I think the filters need to get run inside this below function
+        let value = take_sub_value_at_address(&mut value, self.address)?;
+        if !self.filters.verify(&value) {
+            return Err(DataResolverError::Filtered);
+        }
+        Ok(value)
     }
     fn index(&self) -> PathBuf {
         self.path.join("index.yml")
