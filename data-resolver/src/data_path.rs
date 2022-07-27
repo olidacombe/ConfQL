@@ -17,7 +17,7 @@
 //! - merge all data from `a/b/c/index.yml`
 //!
 //! [DataPath] provides a simple means for performing this process.
-use super::filters::Filters;
+use super::filters::{FilterMap, Filters};
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
