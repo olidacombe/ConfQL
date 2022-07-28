@@ -81,10 +81,7 @@ impl<'a> DataPath<'a> {
         let mut value = value_from_file(path)?;
         // TODO, I think the filters need to get run inside this below function
         let value = take_sub_value_at_address(&mut value, self.address)?;
-        if !self.filters.verify(&value) {
-            return Err(DataResolverError::Filtered);
-        }
-        Ok(value)
+        self.filters.apply(value).ok_or(DataResolverError::Filtered)
     }
     fn index(&self) -> PathBuf {
         self.path.join("index.yml")
