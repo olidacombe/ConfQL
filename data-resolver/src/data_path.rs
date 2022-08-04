@@ -79,7 +79,8 @@ impl<'a> DataPath<'a> {
     }
     fn get_value(&self, path: &Path) -> Result<serde_yaml::Value, DataResolverError> {
         let mut value = value_from_file(path)?;
-        // TODO, I think the filters need to get run inside this below function
+        // TODO, I think the filters need to get run inside this below function somehow
+        // for a quick short-circuit
         let value = take_sub_value_at_address(&mut value, self.address)?;
         self.filters.apply(value).ok_or(DataResolverError::Filtered)
     }

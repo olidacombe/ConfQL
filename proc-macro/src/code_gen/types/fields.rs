@@ -3,9 +3,18 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 use std::collections::HashMap;
 
+// Our internal representation of a field,
+// extracting directives and the underlying
+// type to be sought, be it in an Option or Vec etc.
 pub struct Field<'a, T: query::Text<'a>> {
     pub name: T::Value,
+    // Field type, i.e.
+    // String -> String
+    // String! -> String
+    // [String!] -> String
+    // [String]! -> String etc.
     field_type: FieldType<'a, T>,
+    // Directives we're interested in as a map
     directives: HashMap<String, query::Value<'a, T>>,
 }
 
@@ -19,6 +28,7 @@ impl<'a, T: query::Text<'a>> From<schema::Field<'a, T>> for Field<'a, T> {
         } = field;
         let directives = directives
             .into_iter()
+            // We'll only look at `@confql(...)` directives
             .filter(|d| d.name.as_ref() == "confql")
             .flat_map(|d| d.arguments)
             .map(|(k, v)| (k.as_ref().to_owned(), v))
@@ -52,6 +62,7 @@ where
         let name = name.as_ref();
         let ty = field_type.inner_tokens();
         quote! {
+            // TODO add filters argument?
             if let Ok(v) = <#ty>::resolve_value(data_path.join(#name)) {
                 value.merge_at(#name, v)?;
             }
@@ -64,6 +75,7 @@ where
         let name = name.as_ref();
         let field_name = format_ident!("{}", name);
         let getter = quote! {
+            // TODO add filters argument?
             Ok(context.data_resolver.get(&[#name])?)
         };
         quote! {
@@ -79,6 +91,8 @@ where
     T: query::Text<'a>,
     T: Clone,
 {
+    // Output {field_name): {rust type} for a field
+    // when building struct to be annotated with juniper's `#[derive(GraphQLObject)]`
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Field {
             name, field_type, ..
@@ -94,6 +108,8 @@ enum FieldType<'a, T: query::Text<'a>> {
 }
 
 trait RustType {
+    // Convert a GraphQL type
+    // to a Rust type
     fn rust_type(&self) -> Ident;
 }
 
@@ -159,6 +175,8 @@ where
     T: query::Text<'a>,
     T: Clone,
 {
+    // Turn GraphQL optionality via ! into Rust optionality via
+    // Option enum
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let inner_type = self.inner_tokens();
         tokens.extend(match self {

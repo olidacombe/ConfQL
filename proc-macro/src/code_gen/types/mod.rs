@@ -6,17 +6,23 @@ mod fields;
 
 use fields::Field;
 
-pub enum Type<'a, T: query::Text<'a>> {
-    Object(Object<'a, T>),
-    Query(Object<'a, T>),
-}
-
+/// Top-level schema object, to represent type definition,
+/// has a `name` and a collection of [field](Field)s
 pub struct Object<'a, T: query::Text<'a>> {
     pub name: T::Value,
     fields: Vec<Field<'a, T>>,
 }
 
+/// Top-level schema type, either an [Object], or a `query`
+/// (which is also basically the same - but should have top-level
+/// resolvers generated rather than just field resolvers)
+pub enum Type<'a, T: query::Text<'a>> {
+    Object(Object<'a, T>),
+    Query(Object<'a, T>),
+}
+
 impl<'a, T: query::Text<'a>> Object<'a, T> {
+    /// Return fields with `@confql(arrayIdentifier: true)` attached to them
     fn array_identifier_fields(&self) -> Option<Vec<String>> {
         let fields: Vec<String> = self
             .fields
@@ -49,6 +55,7 @@ impl<'a, T: query::Text<'a>> From<schema::TypeDefinition<'a, T>> for Object<'a, 
     }
 }
 
+// TODO convert to `impl From`?
 impl<'doc, T: query::Text<'doc>> Type<'doc, T> {
     fn from_object_definition(def: schema::ObjectType<'doc, T>) -> Self {
         let fields = def.fields.into_iter().map(Field::from).collect();
