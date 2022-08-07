@@ -101,9 +101,13 @@ impl From<PathBuf> for DataResolver {
 /// ```
 ///
 /// In fact, that's what a procedural macro in the codebase does for you.
-pub trait ResolveValue: Sized {
+pub trait ResolveValue: Sized
+where
+    DataResolverError: From<<<Self as ResolveValue>::Intermediate as TryInto<Self>>::Error>,
+{
+    // TODO [associated type default](https://github.com/rust-lang/rust/issues/29661)
     /// The type that the resolver methods will deal in - typically some kind of builder struct
-    type Intermediate: Default + Merge + TryInto<Self, Error = DataResolverError>;
+    type Intermediate: Default + Merge + TryInto<Self>;
 
     /// Implement this for structs as described in [ResolveValue].
     fn merge_properties<'a>(
@@ -116,7 +120,7 @@ pub trait ResolveValue: Sized {
     /// some fields are defined with `@confql(arrayIdentifier: true)` in the GraphQL
     /// schema.  Then you can pre-populate said fields with a file name or mapping
     /// key.
-    fn init_with_identifier(_identifier: &str) -> Self::Intermediate {
+    fn init_with_identifier<T>(_identifier: T) -> Self::Intermediate {
         Self::Intermediate::default()
     }
     /// Resolve data from the given [DataPath].  The default implementation should be sufficient
@@ -163,19 +167,19 @@ impl ResolveValue for i32 {
     type Intermediate = serde_yaml::Value;
 }
 impl<T: ResolveValue> ResolveValue for Option<T> {
-    type Intermediate = serde_yaml::Value;
+    type Intermediate = <T as ResolveValue>::Intermediate;
 
-    fn resolve_value(data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
+    fn resolve_value(data_path: DataPath) -> Result<Self::Intermediate, DataResolverError> {
         T::resolve_value(data_path).or(Ok(serde_yaml::Value::Null))
     }
 }
 impl<T: ResolveValue> ResolveValue for Vec<T> {
-    type Intermediate = serde_yaml::Value;
+    type Intermediate = <T as ResolveValue>::Intermediate;
 
     fn merge_properties<'a>(
-        value: &'a mut serde_yaml::Value,
+        value: &'a mut <Self::Intermediate as Merge>::Other,
         data_path: &DataPath,
-    ) -> Result<&'a mut serde_yaml::Value, DataResolverError> {
+    ) -> Result<&'a mut Self::Intermediate, DataResolverError> {
         use serde_yaml::Value::{Mapping, Sequence};
         match value {
             Mapping(map) => {
@@ -228,7 +232,7 @@ mod tests {
         fn merge_properties<'a>(
             value: &'a mut serde_yaml::Value,
             data_path: &DataPath,
-        ) -> Result<&'a mut serde_yaml::Value, DataResolverError> {
+        ) -> Result<&'a mut Self::Intermediate, DataResolverError> {
             if let Ok(id) = i32::resolve_value(data_path.join("id")) {
                 value.merge_at("id", id)?;
             }
@@ -247,14 +251,14 @@ mod tests {
 
     impl ResolveValue for MyOtherObj {
         type Intermediate = serde_yaml::Value;
-        fn init_with_identifier(identifier: serde_yaml::Value) -> serde_yaml::Value {
+        fn init_with_identifier(identifier: serde_yaml::Value) -> Self::Intermediate {
             use serde_yaml::{Mapping, Value};
             let mut mapping = Mapping::new();
             mapping.insert(Value::from("alias"), identifier);
             Value::Mapping(mapping)
         }
         fn merge_properties<'a>(
-            value: &'a mut serde_yaml::Value,
+            value: &'a mut Self::Intermediate,
             data_path: &DataPath,
         ) -> Result<&'a mut serde_yaml::Value, DataResolverError> {
             if let Ok(id) = i32::resolve_value(data_path.join("id")) {
@@ -278,7 +282,7 @@ mod tests {
         fn merge_properties<'a>(
             value: &'a mut serde_yaml::Value,
             data_path: &DataPath,
-        ) -> Result<&'a mut serde_yaml::Value, DataResolverError> {
+        ) -> Result<&'a mut Self::Intermediate, DataResolverError> {
             if let Ok(my_obj) = MyObj::resolve_value(data_path.join("my_obj")) {
                 value.merge_at("my_obj", my_obj)?;
             }
