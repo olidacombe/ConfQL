@@ -17,7 +17,7 @@
 //! - merge all data from `a/b/c/index.yml`
 //!
 //! [DataPath] provides a simple means for performing this process.
-use super::filters::{FilterMap, Filters};
+//use super::filters::{FilterMap, Filters};
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -35,7 +35,7 @@ pub struct DataPath<'a> {
     level: Level,
     path: PathBuf,
     address: &'a [&'a str],
-    filters: Filters<'a>,
+    //filters: Filters<'a>,
 }
 
 impl<'a> DataPath<'a> {
@@ -52,7 +52,7 @@ impl<'a> DataPath<'a> {
             }
             Dir => {
                 if let Some((head, tail)) = self.address.split_first() {
-                    self.filters.descend(head);
+                    //self.filters.descend(head);
                     self.path.push(head);
                     self.address = tail;
                     self.level = File;
@@ -82,7 +82,8 @@ impl<'a> DataPath<'a> {
         // TODO, I think the filters need to get run inside this below function somehow
         // for a quick short-circuit
         let value = take_sub_value_at_address(&mut value, self.address)?;
-        self.filters.apply(value).ok_or(DataResolverError::Filtered)
+        //self.filters.apply(value).ok_or(DataResolverError::Filtered)
+        Ok(value)
     }
     fn index(&self) -> PathBuf {
         self.path.join("index.yml")
@@ -93,7 +94,7 @@ impl<'a> DataPath<'a> {
             level: Level::File,
             path: self.path.join(tail),
             address: self.address,
-            filters: self.filters.clone(),
+            //filters: self.filters.clone(),
         }
     }
     /// Creates a new instance from a path and data address.
@@ -102,7 +103,7 @@ impl<'a> DataPath<'a> {
             address,
             level: Level::Dir,
             path: path.into(),
-            filters: Filters::new(),
+            //filters: Filters::new(),
         }
     }
     /// Creates a vector of new instances, one for each file/directory at the current path.
