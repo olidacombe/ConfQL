@@ -1,6 +1,7 @@
 //! Filesystem yaml data resolvers.
 
 #![deny(missing_docs)]
+use core::convert::Infallible;
 use juniper::ID;
 use serde::Deserialize;
 use std::convert::TryInto;
@@ -39,6 +40,12 @@ pub enum DataResolverError {
     /// [serde_yaml::Error]
     #[error(transparent)]
     YamlError(#[from] serde_yaml::Error),
+}
+
+impl From<Infallible> for DataResolverError {
+    fn from(_: Infallible) -> Self {
+        unreachable!()
+    }
 }
 
 /// Clients interact with this struct for data resolution operations.
@@ -136,7 +143,7 @@ where
                 value.merge(mergee)?;
             }
         }
-        Ok(value)
+        value.try_into()
     }
     /// Resolve a starting value before data acquisition from actual file
     /// content.  [Null](serde_yaml::Value::Null) (default impl) is a good starting value in when
