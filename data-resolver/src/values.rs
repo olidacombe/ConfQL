@@ -1,5 +1,6 @@
 use itertools::Itertools;
 pub use serde_yaml::Value;
+use std::convert::TryInto;
 use std::path::Path;
 
 use super::DataResolverError;
@@ -41,9 +42,9 @@ pub fn value_from_file(path: &Path) -> Result<Value, DataResolverError> {
 /// * merging in values from an instance of an associated type (may be `Self`)
 /// * doing the above but instead under a specified key within the target instance
 /// * taking value from a mutable ref
-pub trait Merge {
+pub trait Merge: Sized {
     /// The type from which we'll merge values into `self`
-    type Other;
+    type Other: Default + TryInto<Self, Error = DataResolverError>;
     /// Mutate `self` by merging in `mergee`
     fn merge(&mut self, mergee: Self::Other) -> Result<&mut Self, DataResolverError>;
     /// Mutate `self` by merging in `mergee` to a specified key

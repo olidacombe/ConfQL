@@ -3,6 +3,7 @@
 #![deny(missing_docs)]
 use juniper::ID;
 use serde::Deserialize;
+use std::convert::TryInto;
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -60,7 +61,7 @@ impl DataResolver {
     {
         let data_path = DataPath::new(&self.root, address);
         let value = T::resolve_value(data_path)?;
-        Ok(serde_yaml::from_value(value)?)
+        Ok(value.try_into()?)
     }
 }
 
@@ -100,25 +101,30 @@ impl From<PathBuf> for DataResolver {
 /// ```
 ///
 /// In fact, that's what a procedural macro in the codebase does for you.
-pub trait ResolveValue {
+pub trait ResolveValue: Sized {
+    /// The type that the resolver methods will deal in - typically some kind of builder struct
+    type Intermediate: Default + Merge + TryInto<Self, Error = DataResolverError>;
+
     /// Implement this for structs as described in [ResolveValue].
     fn merge_properties<'a>(
-        value: &'a mut serde_yaml::Value,
+        value: &'a mut <Self::Intermediate as Merge>::Other,
         _data_path: &DataPath,
-    ) -> Result<&'a mut serde_yaml::Value, DataResolverError> {
-        Ok(value)
+    ) -> Result<&'a mut Self::Intermediate, DataResolverError> {
+        value.try_into()
     }
     /// Create a base value from an identifier.  Useful when building an array, where
     /// some fields are defined with `@confql(arrayIdentifier: true)` in the GraphQL
     /// schema.  Then you can pre-populate said fields with a file name or mapping
     /// key.
-    fn init_with_identifier(_identifier: serde_yaml::Value) -> serde_yaml::Value {
-        serde_yaml::Value::Null
+    fn init_with_identifier(_identifier: &str) -> Self::Intermediate {
+        Self::Intermediate::default()
     }
     /// Resolve data from the given [DataPath].  The default implementation should be sufficient
     /// in most cases.
-    fn resolve_value(data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
-        let mut value = data_path.value().unwrap_or(serde_yaml::Value::Null);
+    fn resolve_value(data_path: DataPath) -> Result<Self::Intermediate, DataResolverError> {
+        let mut value = data_path
+            .value()
+            .unwrap_or(<Self::Intermediate as Merge>::Other::default());
         if data_path.done() {
             Self::merge_properties(&mut value, &data_path)?;
         } else if let Some(data_path) = data_path.descend() {
@@ -129,28 +135,43 @@ pub trait ResolveValue {
         Ok(value)
     }
     /// Resolve a starting value before data acquisition from actual file
-    /// content.  [Null](serde_yaml::Value::Null) (default impl) is a good starting value in most cases,
-    /// because it accepts any merge.
+    /// content.  [Null](serde_yaml::Value::Null) (default impl) is a good starting value in when
+    /// `Self::Intermediate` is [serde_yaml::Value] for example because it can accept any merge
+    /// when [Merge] is appropriately implemented.
     /// Explicitly implement this in cases like
     /// `impl<T: ResolveValue> ResolveValue for Vec<T>`
-    /// where the initial value might not be null (i.e. in the [Vec<T>] case, some
+    /// where the initial value might not be trivial (i.e. in the [Vec<T>] case, some
     /// fields may be predefined by the file stem of your [DataPath].
-    fn resolve_vec_base(_data_path: &DataPath) -> serde_yaml::Value {
-        serde_yaml::Value::Null
+    fn resolve_vec_base(_data_path: &DataPath) -> Self::Intermediate {
+        Self::Intermediate::default()
     }
 }
 
-impl ResolveValue for bool {}
-impl ResolveValue for f64 {}
-impl ResolveValue for ID {}
-impl ResolveValue for String {}
-impl ResolveValue for i32 {}
+impl ResolveValue for bool {
+    type Intermediate = serde_yaml::Value;
+}
+impl ResolveValue for f64 {
+    type Intermediate = serde_yaml::Value;
+}
+impl ResolveValue for ID {
+    type Intermediate = serde_yaml::Value;
+}
+impl ResolveValue for String {
+    type Intermediate = serde_yaml::Value;
+}
+impl ResolveValue for i32 {
+    type Intermediate = serde_yaml::Value;
+}
 impl<T: ResolveValue> ResolveValue for Option<T> {
+    type Intermediate = serde_yaml::Value;
+
     fn resolve_value(data_path: DataPath) -> Result<serde_yaml::Value, DataResolverError> {
         T::resolve_value(data_path).or(Ok(serde_yaml::Value::Null))
     }
 }
 impl<T: ResolveValue> ResolveValue for Vec<T> {
+    type Intermediate = serde_yaml::Value;
+
     fn merge_properties<'a>(
         value: &'a mut serde_yaml::Value,
         data_path: &DataPath,
@@ -203,6 +224,7 @@ mod tests {
     }
 
     impl ResolveValue for MyObj {
+        type Intermediate = serde_yaml::Value;
         fn merge_properties<'a>(
             value: &'a mut serde_yaml::Value,
             data_path: &DataPath,
@@ -224,6 +246,7 @@ mod tests {
     }
 
     impl ResolveValue for MyOtherObj {
+        type Intermediate = serde_yaml::Value;
         fn init_with_identifier(identifier: serde_yaml::Value) -> serde_yaml::Value {
             use serde_yaml::{Mapping, Value};
             let mut mapping = Mapping::new();
@@ -251,6 +274,7 @@ mod tests {
     }
 
     impl ResolveValue for Query {
+        type Intermediate = serde_yaml::Value;
         fn merge_properties<'a>(
             value: &'a mut serde_yaml::Value,
             data_path: &DataPath,

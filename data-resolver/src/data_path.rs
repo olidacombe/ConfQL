@@ -18,11 +18,13 @@
 //!
 //! [DataPath] provides a simple means for performing this process.
 //use super::filters::{FilterMap, Filters};
+use super::ResolveValue;
+use std::convert::TryInto;
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::values::{take_sub_value_at_address, value_from_file};
+use super::values::{take_sub_value_at_address, value_from_file, Merge};
 use super::DataResolverError;
 
 enum Level {
@@ -120,11 +122,14 @@ impl<'a> DataPath<'a> {
         )
     }
     /// Tries to convert the current position to a [serde_yaml::Value].
-    pub fn value(&self) -> Result<serde_yaml::Value, DataResolverError> {
+    pub fn value<T: ResolveValue>(
+        &self,
+    ) -> Result<<T::Intermediate as Merge>::Other, DataResolverError> {
         match &self.level {
             Level::Dir => self.get_value(&self.index()),
             Level::File => self.get_value(&self.file()),
-        }
+        }?
+        .try_into()
     }
 }
 
